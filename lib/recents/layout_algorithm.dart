@@ -79,7 +79,8 @@ abstract class LayoutAlgorithm {
   /// 
   /// 由 RenderObject 提供，算法可以选择使用缓存来避免重复计算。
   /// 缓存的生命周期由 RenderObject 管理，每次 performLayout 时会清空。
-  Map<int, LayoutParams>? _layoutParamsCache;
+  @protected
+  Map<int, LayoutParams>? layoutParamsCache;
 
   /// 设置布局参数缓存（可选）
   /// 
@@ -88,7 +89,7 @@ abstract class LayoutAlgorithm {
   /// 
   /// [cache] - 缓存 Map，key 是 item index，value 是 LayoutParams
   void setLayoutParamsCache(Map<int, LayoutParams>? cache) {
-    _layoutParamsCache = cache;
+    layoutParamsCache = cache;
   }
 
   /// 获取布局参数（优先使用缓存）
@@ -114,8 +115,8 @@ abstract class LayoutAlgorithm {
     required TextDirection textDirection,
   }) {
     // 如果有缓存且缓存中存在，直接返回
-    if (_layoutParamsCache != null && _layoutParamsCache!.containsKey(index)) {
-      return _layoutParamsCache![index]!;
+    if (layoutParamsCache != null && layoutParamsCache!.containsKey(index)) {
+      return layoutParamsCache![index]!;
     }
 
     // 否则计算
@@ -134,8 +135,8 @@ abstract class LayoutAlgorithm {
     );
 
     // 如果有缓存，存入缓存
-    if (_layoutParamsCache != null) {
-      _layoutParamsCache![index] = params;
+    if (layoutParamsCache != null) {
+      layoutParamsCache![index] = params;
     }
 
     return params;
@@ -250,10 +251,16 @@ abstract class LayoutAlgorithm {
   /// 
   /// [index] - item 的索引
   /// [itemExtent] - item 在主轴方向的逻辑大小
+  /// [scrollOffset] - 当前滚动偏移量
+  /// [viewportExtent] - 视口大小
+  /// [reverse] - 是否反转方向
   /// 
   /// 返回值：该 item 的起始位置（像素偏移量）
   double indexToLayoutOffset({
     required int index,
     required double itemExtent,
+    required double scrollOffset,
+    required double viewportExtent,
+    required bool reverse,
   });
 }

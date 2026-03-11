@@ -22,9 +22,27 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
   double indexToLayoutOffset({
     required int index,
     required double itemExtent,
+    required double scrollOffset,
+    required double viewportExtent,
+    required bool reverse,
   }) {
-    // 对于单列堆叠布局，layoutOffset 是线性的
-    return index * itemExtent;
+    // 从缓存中获取该 index 的 LayoutParams
+    final params = layoutParamsCache?[index];
+    if (params == null) {
+      // 如果缓存中没有，返回简单的线性值
+      return index * itemExtent;
+    }
+    
+    // 根据方向决定使用 rect.left 还是 rect.right
+    if (reverse) {
+      // reverse: true，从右往左
+      // layoutOffset = (viewportExtent - rect.right) + scrollOffset
+      return (viewportExtent - params.rect.right) + scrollOffset;
+    } else {
+      // reverse: false，从左往右
+      // layoutOffset = rect.left + scrollOffset
+      return params.rect.left + scrollOffset;
+    }
   }
 
   @override

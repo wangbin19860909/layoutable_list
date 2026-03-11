@@ -93,6 +93,24 @@ class ItemAnimatorParams {
         ')';
   }
 
+  /// 复制并更新指定的参数
+  /// 
+  /// 注意：如果更新 offset，会创建新的 ValueNotifier，旧的不会被自动释放
+  /// 调用方需要负责释放旧的 params
+  ItemAnimatorParams copyWith({
+    ValueNotifier<Offset>? offset,
+    Offset? toOffset,
+    Size? size,
+    bool? animated,
+  }) {
+    return ItemAnimatorParams(
+      offset: offset ?? this.offset,
+      toOffset: toOffset ?? this.toOffset,
+      size: size ?? this.size,
+      animated: animated ?? this.animated,
+    );
+  }
+
   
   /// 释放资源
   void dispose() {

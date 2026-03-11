@@ -249,6 +249,9 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   double indexToLayoutOffset({
     required int index,
     required double itemExtent,
+    required double scrollOffset,
+    required double viewportExtent,
+    required bool reverse,
   }) {
     final int mainAxisIndex = index ~/ spanCount;
     return mainAxisPadding + mainAxisIndex * (itemExtent + mainAxisSpacing);

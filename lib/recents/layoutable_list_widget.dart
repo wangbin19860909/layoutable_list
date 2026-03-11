@@ -80,6 +80,19 @@ abstract class LayoutManager {
   /// - 不需要手动释放，生命周期由 LayoutManager 管理
   ValueListenable<LayoutParams> listenLayoutParamsForPosition(int index);
 
+  /// 获取当前的滚动偏移量
+  double get scrollOffset;
+
+  /// 获取视口主轴方向的大小（宽度或高度）
+  double get viewportMainAxisExtent;
+
+  /// 计算指定 item 数量下的最大滚动距离
+  ///
+  /// [itemCount] - item 总数
+  ///
+  /// 返回值：最大滚动距离
+  double getMaxScrollOffset(int itemCount);
+
   /// item 总数
   ///
   /// 返回当前列表中的 item 总数。
@@ -320,6 +333,27 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   }
 
   @override
+  double get scrollOffset {
+    return constraints.scrollOffset + constraints.overlap;
+  }
+
+  @override
+  double get viewportMainAxisExtent {
+    return constraints.viewportMainAxisExtent;
+  }
+
+  @override
+  double getMaxScrollOffset(int itemCount) {
+    final actualScrollExtent = _layoutAlgorithm.computeMaxScrollOffset(
+      itemExtent: itemExtent,
+      itemCount: itemCount,
+      viewportExtent: constraints.viewportMainAxisExtent,
+    );
+    
+    return math.max(actualScrollExtent, constraints.viewportMainAxisExtent + 1.0);
+  }
+
+  @override
   int get itemCount => childManager.childCount;
 
   @override
@@ -391,6 +425,28 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   }
 
   @override
+  double childCrossAxisPosition(RenderBox child) {
+    final childParentData = child.parentData as SliverMultiBoxAdaptorParentData;
+    final index = childParentData.index;
+    
+    if (index == null) {
+      return 0.0;
+    }
+    
+    // 从缓存获取布局参数
+    final params = _getLayoutForPosition(index);
+    
+    // 根据滚动方向返回交叉轴位置
+    if (isVertical) {
+      // 纵向滚动：交叉轴是水平方向，返回 left
+      return params.rect.left;
+    } else {
+      // 横向滚动：交叉轴是垂直方向，返回 top
+      return params.rect.top;
+    }
+  }
+
+  @override
   double computeMaxScrollOffset(
     SliverConstraints constraints,
     double itemExtent,
@@ -420,6 +476,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
 
   @override
   void performLayout() {
+    debugPrint('[RenderLayoutableSliverList] performLayout: scrollOffset=${constraints.scrollOffset}, overlap=${constraints.overlap}, total=${constraints.scrollOffset + constraints.overlap}');
+    
     // 清除缓存，因为 scrollOffset 可能已经改变
     _layoutParamsCache.clear();
 
@@ -458,7 +516,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   @override
   int getMinChildIndexForScrollOffset(double scrollOffset, double itemExtent) {
     final minIndex = _layoutAlgorithm.getMinVisibleIndex(
-      scrollOffset: constraints.scrollOffset,
+      scrollOffset: constraints.scrollOffset + constraints.overlap,
       itemExtent: itemExtent,
       itemCount: childManager.childCount,
       mainAxisExtent: constraints.viewportMainAxisExtent,
@@ -477,7 +535,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   @override
   int getMaxChildIndexForScrollOffset(double scrollOffset, double itemExtent) {
     final maxIndex = _layoutAlgorithm.getMaxVisibleIndex(
-      scrollOffset: constraints.scrollOffset,
+      scrollOffset: constraints.scrollOffset + constraints.overlap,
       itemExtent: itemExtent,
       itemCount: childManager.childCount,
       mainAxisExtent: constraints.viewportMainAxisExtent,
@@ -498,6 +556,9 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     return _layoutAlgorithm.indexToLayoutOffset(
       index: index,
       itemExtent: itemExtent,
+      scrollOffset: constraints.scrollOffset + constraints.overlap,
+      viewportExtent: constraints.viewportMainAxisExtent,
+      reverse: isReversed,
     );
   }
 
@@ -514,22 +575,36 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   }
 
   @override
+  bool hitTestChildren(
+    SliverHitTestResult result, {
+    required double mainAxisPosition,
+    required double crossAxisPosition,
+  }) {
+    RenderBox? child = firstChild;
+    final BoxHitTestResult boxResult = BoxHitTestResult.wrap(result);
+    while (child != null) {
+      if (hitTestBoxChild(
+        boxResult,
+        child,
+        mainAxisPosition: mainAxisPosition,
+        crossAxisPosition: crossAxisPosition,
+      )) {
+        return true;
+      }
+      child = childAfter(child);
+    }
+    return false;
+  }
+
+  @override
   void paint(PaintingContext context, Offset offset) {
     if (firstChild == null) {
       return;
     }
 
-    // 收集所有子元素
-    final children = <RenderBox>[];
-    RenderBox? child = firstChild;
-
-    while (child != null) {
-      children.add(child);
-      child = childAfter(child);
-    }
-
+    RenderBox? child = lastChild;
     // 按照正确的 z-order 绘制（后面的先绘制）
-    for (final child in children.reversed) {
+    while (child != null) {
       final childParentData =
           child.parentData as SliverMultiBoxAdaptorParentData;
       final index = childParentData.index!;
@@ -544,6 +619,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
 
       // 直接在正确的位置绘制子元素
       context.paintChild(child, childOffset);
+
+      child = childBefore(child);
     }
   }
 }

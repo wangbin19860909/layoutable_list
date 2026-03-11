@@ -48,6 +48,7 @@ class _ItemAnimatorState extends State<ItemAnimator> {
 
         // 执行位置动画
         return _PositionAnimation(
+          itemId: widget.itemId,
           offsetNotifier: params.offset!,
           toOffset: params.toOffset,
           animationId: params.animationId,
@@ -64,6 +65,7 @@ class _ItemAnimatorState extends State<ItemAnimator> {
 
 /// 位置动画（平移）
 class _PositionAnimation extends StatefulWidget {
+  final int itemId;
   final ValueNotifier<Offset> offsetNotifier;
   final Offset toOffset;
   final int animationId;
@@ -73,6 +75,7 @@ class _PositionAnimation extends StatefulWidget {
   final Widget child;
 
   const _PositionAnimation({
+    required this.itemId,
     required this.offsetNotifier,
     required this.toOffset,
     required this.animationId,
@@ -88,6 +91,7 @@ class _PositionAnimation extends StatefulWidget {
 
 class _PositionAnimationState extends State<_PositionAnimation> {
   late final ValueNotifier<Offset> _offsetNotifier;
+  int? _currentAnimationId;
 
   @override
   void initState() {
@@ -108,6 +112,11 @@ class _PositionAnimationState extends State<_PositionAnimation> {
     return ValueListenableBuilder<Offset>(
       valueListenable: _offsetNotifier,
       builder: (context, fromOffset, child) {
+        // 检测新动画开始
+        if (_currentAnimationId != widget.animationId) {
+          _currentAnimationId = widget.animationId;
+        }
+        
         // 使用 TweenAnimationBuilder 执行动画
         // - animated=true: 从 fromOffset 动画到 toOffset
         // - animated=false: duration=0，立即显示 toOffset

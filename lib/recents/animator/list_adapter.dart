@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../service_holder.dart';
 import '../layoutable_list_widget.dart';
@@ -66,8 +67,11 @@ class ListAdapter<T> extends ChangeNotifier {
   /// 重置 params 为 zero，避免下次重新挂载时执行不必要的动画
   void onItemUnmounted(int id) {
     if (_animatorParams.containsKey(id)) {
-      // 重置为 zero
-      _animatorParams[id]!.value = ItemAnimatorParams(offset: ValueNotifier(Offset.zero));
+      // 直接替换整个 ValueNotifier，而不是修改 value
+      // 这样不会触发旧的监听器（旧的 ValueNotifier 正在 dispose）
+      _animatorParams[id] = ValueNotifier(
+        ItemAnimatorParams(offset: ValueNotifier(Offset.zero)),
+      );
     }
   }
 
@@ -75,7 +79,6 @@ class ListAdapter<T> extends ChangeNotifier {
   void addItem(T item, {int index = 0}) {
     index = index.clamp(0, _items.length);
     final itemId = idExtractor(item);
-
     
     _animatorParams[itemId] = ValueNotifier(
       ItemAnimatorParams(offset: null),
@@ -162,11 +165,35 @@ class ListAdapter<T> extends ChangeNotifier {
       throw RangeError('Index $removingIndex out of range');
     }
 
+    debugPrint('[ListAdapter] ========== removeAt START: removingIndex=$removingIndex ==========');
+
     final removingItemId = idExtractor(_items[removingIndex]);
     final removingNotifier = _animatorParams[removingItemId]!;
     
     // 检查被删除的 item 是否已被渲染
     final shouldAnimateRemoval = removingNotifier.hasListeners;
+
+    // 获取当前的滚动状态
+    final currentScrollOffset = layoutManager.scrollOffset;
+    final viewportExtent = layoutManager.viewportMainAxisExtent;
+    
+    // 计算删除前后的最大滚动距离
+    final oldMaxScrollOffset = layoutManager.getMaxScrollOffset(_items.length);
+    final newMaxScrollOffset = layoutManager.getMaxScrollOffset(_items.length - 1);
+    
+    // 判断是否处于尾部 overscroll 状态
+    final isOverscrolling = currentScrollOffset < 0 || currentScrollOffset > (oldMaxScrollOffset - viewportExtent);
+    
+    // 预测删除后的 scrollOffset
+    // 如果处于 overscroll 状态，使用当前 scrollOffset（因为回弹动画会处理）
+    // 否则，预测 ScrollView 会调整到的位置
+    final newScrollOffset = isOverscrolling 
+        ? currentScrollOffset 
+        : currentScrollOffset.clamp(0.0, newMaxScrollOffset - viewportExtent);
+    
+    debugPrint('[ListAdapter] removeAt: currentScrollOffset=$currentScrollOffset, viewportExtent=$viewportExtent');
+    debugPrint('[ListAdapter] removeAt: oldMaxScrollOffset=$oldMaxScrollOffset, newMaxScrollOffset=$newMaxScrollOffset');
+    debugPrint('[ListAdapter] removeAt: isOverscrolling=$isOverscrolling, newScrollOffset=$newScrollOffset');
 
     // 1. 计算其他 item 的新位置（在删除数据之前）
     for (int i = 0; i < _items.length; i++) {
@@ -179,25 +206,26 @@ class ListAdapter<T> extends ChangeNotifier {
       
       // 如果 item 从未被渲染过（没有监听器），设置为 zero 避免后续执行 add 动画
       if (!notifier.hasListeners) {
+        debugPrint('[ListAdapter] removeAt: item $itemId not rendered, skip animation');
         notifier.value = ItemAnimatorParams(offset: ValueNotifier(Offset.zero));
         continue;
       }
 
       final currentParams = notifier.value;
 
-      // 计算 item 在旧布局中的位置
+      // 计算 item 在旧布局中的位置（使用当前 scrollOffset）
       final oldLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: i,
         itemCount: _items.length,
-        scrollOffset: 0.0, // 使用绝对位置，不受当前滚动位置影响
+        scrollOffset: currentScrollOffset,
       );
 
-      // 计算 item 在新布局中的位置（删除后）
+      // 计算 item 在新布局中的位置（使用预测的新 scrollOffset）
       final newIndex = i > removingIndex ? i - 1 : i;
       final newLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: newIndex,
         itemCount: _items.length - 1,
-        scrollOffset: 0.0, // 使用绝对位置，不受当前滚动位置影响
+        scrollOffset: newScrollOffset,
       );
 
       // 计算布局位置差异
@@ -212,12 +240,15 @@ class ListAdapter<T> extends ChangeNotifier {
       // 新的 offset = 当前视觉偏移 + 布局差异
       final newOffset = currentVisualOffset + layoutDelta;
 
+      debugPrint('[ListAdapter] removeAt: item $itemId, index=$i -> $newIndex');
+      debugPrint('[ListAdapter] removeAt: item $itemId, oldRect=${oldLayoutParams.rect}, newRect=${newLayoutParams.rect}');
+      debugPrint('[ListAdapter] removeAt: item $itemId, layoutDelta=$layoutDelta, currentOffset=$currentVisualOffset, newOffset=$newOffset');
+
       // 更新 params
       if (currentParams.offset != null) {
-        currentParams.offset!.value = newOffset;
         // 创建新的 params 以触发动画（animationId 自动递增）
         notifier.value = ItemAnimatorParams(
-          offset: currentParams.offset,
+          offset: ValueNotifier(newOffset),
           size: newLayoutParams.rect.size,
         );
       } else {

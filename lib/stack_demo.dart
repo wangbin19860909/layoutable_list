@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'service_holder.dart';
 import 'recents/layoutable_list_widget.dart';
@@ -5,6 +6,7 @@ import 'recents/algorithms/stack_layout_algorithm.dart';
 import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
 import 'recents/physics/limited_overscroll_physics.dart';
+import 'recents/item_draggable.dart';
 
 /// 堆叠布局 Demo
 /// 使用 StackLayoutAlgorithm 和 ListAdapter 实现补位动画
@@ -15,13 +17,16 @@ class StackDemo extends StatefulWidget {
   State<StackDemo> createState() => _StackDemoState();
 }
 
-class _StackDemoState extends State<StackDemo> {
+class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
   int _nextId = 0;
   
   // 追踪新添加的 item，用于执行添加动画
   final Set<int> _newItemIds = {};
+  
+  // 追踪正在拖拽的 item
+  int? _draggingItemId;
 
   @override
   void initState() {
@@ -101,15 +106,65 @@ class _StackDemoState extends State<StackDemo> {
   }
 
   @override
+  void onDragStart(int itemId) {
+    setState(() {
+      _draggingItemId = itemId;
+    });
+  }
+
+  @override
+  void onDragMove(int itemId, Offset offset) {
+    // 可以在这里实时更新 UI
+  }
+
+  @override
+  void onDragEnd(int itemId, DragResult result) {
+    setState(() {
+      _draggingItemId = null;
+    });
+    
+    switch (result) {
+      case SnapBack():
+        // 回弹，不做处理
+        break;
+        
+      case Swipe(:final direction):
+        // 根据方向删除 item
+        if (direction == AxisDirection.up || direction == AxisDirection.down) {
+          final item = _adapter.items.firstWhere((item) => item.id == itemId);
+          _adapter.removeItem(item);
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已删除卡片 $itemId'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // 获取屏幕尺寸
+    final screenSize = MediaQuery.of(context).size;
+    final containerWidth = screenSize.width;
+    final containerHeight = screenSize.height - kToolbarHeight - MediaQuery.of(context).padding.top;
+    
+    // 卡片高度是容器高度的 0.8
+    final cardHeight = containerHeight * 0.8;
+    // 卡片宽高比与容器一致
+    final cardWidth = cardHeight * (containerWidth / containerHeight);
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('堆叠布局 (${_adapter.items.length} 张卡片)'),
         backgroundColor: Colors.blue,
       ),
       body: LayoutableListWidget(
-        itemWidth: 300,
-        itemHeight: 400,
+        itemWidth: cardWidth,
+        itemHeight: cardHeight,
         scrollDirection: Axis.horizontal,
         reverse: false,
         layoutManagerHolder: _layoutManagerHolder,
@@ -136,12 +191,26 @@ class _StackDemoState extends State<StackDemo> {
                     ),
                   );
                 },
-                child: ItemAnimator(
-                  key: ValueKey('animator_${item.id}'),
+                child: ItemDraggable(
+                  key: ValueKey('draggable_${item.id}'),
                   itemId: item.id,
                   paramsNotifier: _adapter.listenAnimatorParams(item.id),
-                  onDispose: _adapter.onItemUnmounted,
-                  child: _buildCard(item),
+                  scrollDirection: Axis.horizontal,
+                  listener: this,
+                  swipeThreshold: const SwipeThreshold(
+                    velocityThreshold: 800.0,
+                    offsetThreshold: 300.0,
+                  ),
+                  dragGestureSettings: const DeviceGestureSettings(
+                    touchSlop: 30.0,  // 增大阈值，让拖拽更难触发（接近 80 度才触发）
+                  ),
+                  child: ItemAnimator(
+                    key: ValueKey('animator_${item.id}'),
+                    itemId: item.id,
+                    paramsNotifier: _adapter.listenAnimatorParams(item.id),
+                    onDispose: _adapter.onItemUnmounted,
+                    child: _buildCard(item),
+                  ),
                 ),
               ),
             );

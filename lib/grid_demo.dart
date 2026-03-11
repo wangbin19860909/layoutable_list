@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'service_holder.dart';
 import 'recents/layoutable_list_widget.dart';
@@ -5,6 +6,7 @@ import 'recents/algorithms/grid_layout_algorithm.dart';
 import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
 import 'recents/physics/limited_overscroll_physics.dart';
+import 'recents/item_draggable.dart';
 
 /// 网格布局 Demo（横向一行）
 /// 使用 GridLayoutAlgorithm 和 ListAdapter 实现补位动画
@@ -15,13 +17,16 @@ class GridDemo extends StatefulWidget {
   State<GridDemo> createState() => _GridDemoState();
 }
 
-class _GridDemoState extends State<GridDemo> {
+class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
   int _nextId = 0;
   
   // 追踪新添加的 item，用于执行添加动画
   final Set<int> _newItemIds = {};
+  
+  // 追踪正在拖拽的 item
+  int? _draggingItemId;
 
   @override
   void initState() {
@@ -101,6 +106,48 @@ class _GridDemoState extends State<GridDemo> {
   }
 
   @override
+  void onDragStart(int itemId) {
+    setState(() {
+      _draggingItemId = itemId;
+    });
+    debugPrint('开始拖拽: $itemId');
+  }
+
+  @override
+  void onDragMove(int itemId, Offset offset) {
+    // 可以在这里实时更新 UI，比如显示删除提示
+    debugPrint('拖拽中: $itemId, offset: $offset');
+  }
+
+  @override
+  void onDragEnd(int itemId, DragResult result) {
+    setState(() {
+      _draggingItemId = null;
+    });
+    
+    switch (result) {
+      case SnapBack():
+        debugPrint('回弹: $itemId');
+        
+      case Swipe(:final direction, :final velocity, :final offset):
+        debugPrint('Swipe: $itemId, 方向: $direction, 速度: $velocity, 偏移: $offset');
+        
+        // 根据方向删除 item
+        if (direction == AxisDirection.up || direction == AxisDirection.down) {
+          final item = _adapter.items.firstWhere((item) => item.id == itemId);
+          _adapter.removeItem(item);
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已删除卡片 $itemId'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -143,12 +190,26 @@ class _GridDemoState extends State<GridDemo> {
                     ),
                   );
                 },
-                child: ItemAnimator(
-                  key: ValueKey('animator_${item.id}'),
+                child: ItemDraggable(
+                  key: ValueKey('draggable_${item.id}'),
                   itemId: item.id,
                   paramsNotifier: _adapter.listenAnimatorParams(item.id),
-                  onDispose: _adapter.onItemUnmounted,
-                  child: _buildCard(item),
+                  scrollDirection: Axis.horizontal,
+                  listener: this,
+                  swipeThreshold: const SwipeThreshold(
+                    velocityThreshold: 800.0,
+                    offsetThreshold: 300.0,
+                  ),
+                  dragGestureSettings: const DeviceGestureSettings(
+                    touchSlop: 30.0,  // 增大阈值，让拖拽更难触发（接近 80 度才触发）
+                  ),
+                  child: ItemAnimator(
+                    key: ValueKey('animator_${item.id}'),
+                    itemId: item.id,
+                    paramsNotifier: _adapter.listenAnimatorParams(item.id),
+                    onDispose: _adapter.onItemUnmounted,
+                    child: _buildCard(item),
+                  ),
                 ),
               ),
             );
