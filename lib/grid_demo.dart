@@ -110,13 +110,11 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
     setState(() {
       _draggingItemId = itemId;
     });
-    debugPrint('开始拖拽: $itemId');
   }
 
   @override
   void onDragMove(int itemId, Offset offset) {
     // 可以在这里实时更新 UI，比如显示删除提示
-    debugPrint('拖拽中: $itemId, offset: $offset');
   }
 
   @override
@@ -127,11 +125,10 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
     
     switch (result) {
       case SnapBack():
-        debugPrint('回弹: $itemId');
+        // 回弹，不做任何操作
+        break;
         
       case Swipe(:final direction, :final velocity, :final offset):
-        debugPrint('Swipe: $itemId, 方向: $direction, 速度: $velocity, 偏移: $offset');
-        
         // 根据方向删除 item
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
           final item = _adapter.items.firstWhere((item) => item.id == itemId);
@@ -144,6 +141,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
             ),
           );
         }
+        break;
     }
   }
 
@@ -170,14 +168,17 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
           mainAxisPadding: 16,
           crossAxisPadding: 16,
         ),
-        delegate: SliverChildListDelegate(
-          _adapter.items.map((item) {
-            final isNew = _newItemIds.contains(item.id);
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = _adapter.getItem(index);
+            final itemId = _adapter.getItemId(index);
+            final itemIdInt = int.parse(itemId); // ItemAnimator 需要 int
+            final isNew = _newItemIds.contains(itemIdInt);
 
             return KeyedSubtree(
-              key: ValueKey(item.id),
+              key: ValueKey(itemId),
               child: TweenAnimationBuilder<double>(
-                key: ValueKey('tween_${item.id}'),
+                key: ValueKey('tween_$itemId'),
                 tween: Tween(begin: isNew ? 0.0 : 1.0, end: 1.0),
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeOut,
@@ -191,9 +192,9 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                   );
                 },
                 child: ItemDraggable(
-                  key: ValueKey('draggable_${item.id}'),
-                  itemId: item.id,
-                  paramsNotifier: _adapter.listenAnimatorParams(item.id),
+                  key: ValueKey('draggable_$itemId'),
+                  itemId: itemIdInt,
+                  paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -204,16 +205,22 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                     touchSlop: 30.0,  // 增大阈值，让拖拽更难触发（接近 80 度才触发）
                   ),
                   child: ItemAnimator(
-                    key: ValueKey('animator_${item.id}'),
-                    itemId: item.id,
-                    paramsNotifier: _adapter.listenAnimatorParams(item.id),
+                    key: ValueKey('animator_$itemId'),
+                    itemId: itemIdInt,
+                    paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
+                    layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
                     onDispose: _adapter.onItemUnmounted,
                     child: _buildCard(item),
                   ),
                 ),
               ),
             );
-          }).toList(),
+          },
+          childCount: _adapter.items.length,
+          findChildIndexCallback: (Key key) {
+            final valueKey = key as ValueKey<String>;
+            return _adapter.findChildIndex(valueKey.value);
+          },
         ),
       ),
       floatingActionButton: Column(

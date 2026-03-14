@@ -38,13 +38,15 @@ class ItemAnimatorParams {
 
   /// 当前尺寸（绝对值）
   /// 
-  /// - 如果为 null，表示使用 item 的自然尺寸（目标状态）
-  /// - 如果不为 null，表示 item 应该从这个尺寸动画到自然尺寸
+  /// - 如果为 Size.zero，表示使用 LayoutParams 的尺寸
+  /// - 否则，表示 item 应该使用这个尺寸执行动画
   /// 
   /// 例如：
-  /// - size = Size(200, 100)：item 从 200x100 动画到自然尺寸
-  /// - size = null：item 使用自然尺寸，无需尺寸动画
-  final Size? size;
+  /// - size = Size(200, 100)：item 使用 200x100 执行动画
+  /// - size = Size.zero：使用 LayoutParams 的尺寸
+  /// 
+  /// 默认值为 Size.zero
+  final Size size;
 
   /// 动画 ID，用于强制重新触发动画
   /// 每次创建新的 params 时自动递增
@@ -59,7 +61,7 @@ class ItemAnimatorParams {
   ItemAnimatorParams({
     this.offset,
     this.toOffset = Offset.zero,
-    this.size,
+    this.size = Size.zero,
     this.animated = true,
   }) : animationId = ++_globalAnimationIdCounter;
 

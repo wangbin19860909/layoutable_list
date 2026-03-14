@@ -167,7 +167,7 @@ class LayoutableListWidget extends StatelessWidget {
           itemHeight: itemHeight,
           padding: padding,
           delegate: delegate,
-          layoutServiceHolder: layoutManagerHolder,
+          layoutManagerHolder: layoutManagerHolder,
           layoutAlgorithm: layoutAlgorithm,
           cacheExtent: cacheExtent,
         ),
@@ -187,7 +187,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
   /// 左侧 padding（用于调整居中位置）
   final EdgeInsetsGeometry padding;
 
-  final ServiceHolder<LayoutManager> layoutServiceHolder;
+  final ServiceHolder<LayoutManager> layoutManagerHolder;
 
   /// 布局算法
   final LayoutAlgorithm layoutAlgorithm;
@@ -201,7 +201,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
     required this.itemWidth,
     required this.itemHeight,
     required this.padding,
-    required this.layoutServiceHolder,
+    required this.layoutManagerHolder,
     required this.layoutAlgorithm,
     this.cacheExtent = 250.0,
   });
@@ -214,7 +214,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
       itemWidth: itemWidth,
       itemHeight: itemHeight,
       padding: padding,
-      layoutServiceHolder: layoutServiceHolder,
+      layoutManagerHolder: layoutManagerHolder,
       layoutAlgorithm: layoutAlgorithm,
       textDirection: Directionality.of(context),
       cacheExtent: cacheExtent,
@@ -243,7 +243,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
 
 class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     implements LayoutManager {
-  final ServiceHolder<LayoutManager> layoutServiceHolder;
+  final ServiceHolder<LayoutManager> layoutManagerHolder;
 
   final Map<int, LayoutParams> _layoutParamsCache = {};
 
@@ -279,7 +279,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
 
   RenderLayoutableSliverList({
     required super.childManager,
-    required this.layoutServiceHolder,
+    required this.layoutManagerHolder,
     required LayoutAlgorithm layoutAlgorithm,
     required double itemWidth,
     required double itemHeight,
@@ -292,7 +292,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
        _padding = padding,
        _textDirection = textDirection,
        _cacheExtent = cacheExtent {
-    layoutServiceHolder.attach(this);
+    layoutManagerHolder.attach(this);
     // 将缓存传递给算法
     _layoutAlgorithm.setLayoutParamsCache(_layoutParamsCache);
   }
@@ -300,7 +300,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   @override
   void dispose() {
     super.dispose();
-    layoutServiceHolder.detach();
+    layoutManagerHolder.detach();
     // 释放所有 notifier
     for (final notifier in _layoutParamsNotifiers.values) {
       notifier.dispose();
@@ -476,8 +476,6 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
 
   @override
   void performLayout() {
-    debugPrint('[RenderLayoutableSliverList] performLayout: scrollOffset=${constraints.scrollOffset}, overlap=${constraints.overlap}, total=${constraints.scrollOffset + constraints.overlap}');
-    
     // 清除缓存，因为 scrollOffset 可能已经改变
     _layoutParamsCache.clear();
 

@@ -312,19 +312,14 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
 
   /// 执行回弹动画
   void _snapBack({double velocity = 0.0}) {
-    debugPrint('[ItemDraggable] snapBack: velocity=$velocity, paramsNotifier=${widget.paramsNotifier != null}');
-    
     if (widget.paramsNotifier != null) {
       // 模式 1：自己执行动画，每帧更新 params.offset.value
       final params = widget.paramsNotifier!.value;
       final currentOffset = params.offset?.value ?? Offset.zero;
       
       if (currentOffset == Offset.zero) {
-        debugPrint('[ItemDraggable] snapBack: already at zero, skip');
         return;
       }
-      
-      debugPrint('[ItemDraggable] snapBack mode 1: currentOffset=$currentOffset');
       
       // 清理旧的动画控制器
       _mode1SnapBackController?.dispose();
@@ -357,7 +352,6 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
               animated: false,
             );
 
-            debugPrint('[ItemDraggable] snapBack animation frame: offset=$newValue');
             widget.paramsNotifier!.value = newParams;
           }
         }
@@ -366,7 +360,6 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
       // 动画完成后清理
       _mode1SnapBackController!.addStatusListener((status) {
         if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
-          debugPrint('[ItemDraggable] snapBack mode 1: animation completed, status=$status');
           if (mounted) {
             _mode1SnapBackController?.dispose();
             _mode1SnapBackController = null;
@@ -384,13 +377,11 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
       // 注意：使用正值，fling 是从当前位置向目标位置运动
       final clampedVelocity = (normalizedVelocity / 200.0).clamp(0.0, 0.5);
       
-      debugPrint('[ItemDraggable] snapBack mode 1: fling with velocity=$clampedVelocity (normalized=$normalizedVelocity)');
       _mode1SnapBackController!.fling(velocity: clampedVelocity);
       
     } else {
       // 模式 2：自己实现回弹动画，支持初速度
       if (_currentOffset == Offset.zero) {
-        debugPrint('[ItemDraggable] snapBack: already at zero, skip');
         return;
       }
       
@@ -398,8 +389,6 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
       // velocity 需要归一化到 0-1 范围
       final distance = _currentOffset.distance;
       final normalizedVelocity = velocity / distance;
-      
-      debugPrint('[ItemDraggable] snapBack mode 2: currentOffset=$_currentOffset, distance=$distance, velocity=$velocity, normalizedVelocity=$normalizedVelocity');
       
       _snapBackAnimation = Tween<Offset>(
         begin: _currentOffset,
@@ -413,7 +402,6 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
       // 调整速度范围，让动画更平滑
       // 注意：使用正值，fling 是从 0 向 1 运动
       final clampedVelocity = (normalizedVelocity / 200.0).clamp(0.0, 0.5);
-      debugPrint('[ItemDraggable] snapBack: fling with velocity=$clampedVelocity');
       
       _snapBackController!.fling(
         velocity: clampedVelocity,
@@ -423,7 +411,6 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
             _currentOffset = Offset.zero;
             _snapBackAnimation = null;
           });
-          debugPrint('[ItemDraggable] snapBack: animation completed');
         }
       });
     }

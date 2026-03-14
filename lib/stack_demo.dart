@@ -171,14 +171,17 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         cacheExtent: 300,
         physics: const LimitedOverscrollPhysics(maxOverscrollExtent: 60.0),
         layoutAlgorithm: StackLayoutAlgorithm(),
-        delegate: SliverChildListDelegate(
-          _adapter.items.map((item) {
-            final isNew = _newItemIds.contains(item.id);
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = _adapter.getItem(index);
+            final itemId = _adapter.getItemId(index);
+            final itemIdInt = int.parse(itemId); // ItemAnimator 需要 int
+            final isNew = _newItemIds.contains(itemIdInt);
 
             return KeyedSubtree(
-              key: ValueKey(item.id),
+              key: ValueKey(itemId),
               child: TweenAnimationBuilder<double>(
-                key: ValueKey('tween_${item.id}'),
+                key: ValueKey('tween_$itemId'),
                 tween: Tween(begin: isNew ? 0.0 : 1.0, end: 1.0),
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeOut,
@@ -192,9 +195,9 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                   );
                 },
                 child: ItemDraggable(
-                  key: ValueKey('draggable_${item.id}'),
-                  itemId: item.id,
-                  paramsNotifier: _adapter.listenAnimatorParams(item.id),
+                  key: ValueKey('draggable_$itemId'),
+                  itemId: itemIdInt,
+                  paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -205,16 +208,22 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                     touchSlop: 30.0,  // 增大阈值，让拖拽更难触发（接近 80 度才触发）
                   ),
                   child: ItemAnimator(
-                    key: ValueKey('animator_${item.id}'),
-                    itemId: item.id,
-                    paramsNotifier: _adapter.listenAnimatorParams(item.id),
+                    key: ValueKey('animator_$itemId'),
+                    itemId: itemIdInt,
+                    paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
+                    layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
                     onDispose: _adapter.onItemUnmounted,
                     child: _buildCard(item),
                   ),
                 ),
               ),
             );
-          }).toList(),
+          },
+          childCount: _adapter.items.length,
+          findChildIndexCallback: (Key key) {
+            final valueKey = key as ValueKey<String>;
+            return _adapter.findChildIndex(valueKey.value);
+          },
         ),
       ),
       floatingActionButton: Column(

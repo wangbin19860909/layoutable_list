@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../service_holder.dart';
 import '../layoutable_list_widget.dart';
@@ -27,6 +26,9 @@ class ListAdapter<T> extends ChangeNotifier {
 
   /// 为每个 item 维护的动画参数
   final Map<int, ValueNotifier<ItemAnimatorParams>> _animatorParams = {};
+  
+  /// id -> index 的映射，用于快速查找（使用 String 作为 key 更通用）
+  final Map<String, int> _idToIndexMap = {};
 
   ListAdapter({
     required List<T> items,
@@ -36,6 +38,37 @@ class ListAdapter<T> extends ChangeNotifier {
   }) : _layoutManagerHolder = layoutManagerHolder,
        _items = List.from(items) {
     _initializeParams();
+    _rebuildIndexMap();
+  }
+
+  /// 重建 id -> index 映射
+  void _rebuildIndexMap() {
+    _idToIndexMap.clear();
+    for (int i = 0; i < _items.length; i++) {
+      final id = idExtractor(_items[i]);
+      _idToIndexMap[id.toString()] = i;
+    }
+  }
+
+  /// 根据 Key 查找 item 的当前 index（用于 findChildIndexCallback）
+  int? findChildIndex(String itemId) {
+    return _idToIndexMap[itemId];
+  }
+  
+  /// 根据 index 获取 item 的 id（返回 String 更通用）
+  String getItemId(int index) {
+    if (index < 0 || index >= _items.length) {
+      throw RangeError('Index $index out of range');
+    }
+    return idExtractor(_items[index]).toString();
+  }
+  
+  /// 根据 index 获取 item
+  T getItem(int index) {
+    if (index < 0 || index >= _items.length) {
+      throw RangeError('Index $index out of range');
+    }
+    return _items[index];
   }
 
   /// 初始化所有 item 的动画参数
@@ -81,7 +114,7 @@ class ListAdapter<T> extends ChangeNotifier {
     final itemId = idExtractor(item);
     
     _animatorParams[itemId] = ValueNotifier(
-      ItemAnimatorParams(offset: null),
+      ItemAnimatorParams(offset: null, animated: false), // 新建 item 不执行动画
     );
         
     // 2. 插入数据
@@ -131,19 +164,22 @@ class ListAdapter<T> extends ChangeNotifier {
       if (currentParams.offset != null) {
         currentParams.offset!.value = newOffset;
         // 创建新的 params 以触发动画（animationId 自动递增）
-        notifier.value = ItemAnimatorParams(
+        final newParams = ItemAnimatorParams(
           offset: currentParams.offset,
           size: newLayoutParams.rect.size,
         );
+        notifier.value = newParams;
       } else {
-        notifier.value = ItemAnimatorParams(
+        final newParams = ItemAnimatorParams(
           offset: ValueNotifier(newOffset),
           size: newLayoutParams.rect.size,
         );
+        notifier.value = newParams;
       }
     }
 
     notifyListeners();
+    _rebuildIndexMap();
   }
 
   /// 移除指定的 item
@@ -164,8 +200,6 @@ class ListAdapter<T> extends ChangeNotifier {
     if (removingIndex < 0 || removingIndex >= _items.length) {
       throw RangeError('Index $removingIndex out of range');
     }
-
-    debugPrint('[ListAdapter] ========== removeAt START: removingIndex=$removingIndex ==========');
 
     final removingItemId = idExtractor(_items[removingIndex]);
     final removingNotifier = _animatorParams[removingItemId]!;
@@ -190,10 +224,6 @@ class ListAdapter<T> extends ChangeNotifier {
     final newScrollOffset = isOverscrolling 
         ? currentScrollOffset 
         : currentScrollOffset.clamp(0.0, newMaxScrollOffset - viewportExtent);
-    
-    debugPrint('[ListAdapter] removeAt: currentScrollOffset=$currentScrollOffset, viewportExtent=$viewportExtent');
-    debugPrint('[ListAdapter] removeAt: oldMaxScrollOffset=$oldMaxScrollOffset, newMaxScrollOffset=$newMaxScrollOffset');
-    debugPrint('[ListAdapter] removeAt: isOverscrolling=$isOverscrolling, newScrollOffset=$newScrollOffset');
 
     // 1. 计算其他 item 的新位置（在删除数据之前）
     for (int i = 0; i < _items.length; i++) {
@@ -206,7 +236,6 @@ class ListAdapter<T> extends ChangeNotifier {
       
       // 如果 item 从未被渲染过（没有监听器），设置为 zero 避免后续执行 add 动画
       if (!notifier.hasListeners) {
-        debugPrint('[ListAdapter] removeAt: item $itemId not rendered, skip animation');
         notifier.value = ItemAnimatorParams(offset: ValueNotifier(Offset.zero));
         continue;
       }
@@ -240,10 +269,6 @@ class ListAdapter<T> extends ChangeNotifier {
       // 新的 offset = 当前视觉偏移 + 布局差异
       final newOffset = currentVisualOffset + layoutDelta;
 
-      debugPrint('[ListAdapter] removeAt: item $itemId, index=$i -> $newIndex');
-      debugPrint('[ListAdapter] removeAt: item $itemId, oldRect=${oldLayoutParams.rect}, newRect=${newLayoutParams.rect}');
-      debugPrint('[ListAdapter] removeAt: item $itemId, layoutDelta=$layoutDelta, currentOffset=$currentVisualOffset, newOffset=$newOffset');
-
       // 更新 params
       if (currentParams.offset != null) {
         // 创建新的 params 以触发动画（animationId 自动递增）
@@ -268,7 +293,10 @@ class ListAdapter<T> extends ChangeNotifier {
     // 4. 通知 UI 刷新
     notifyListeners();
     
-    // 5. 返回是否需要执行删除动画
+    // 5. 重建索引映射
+    _rebuildIndexMap();
+    
+    // 6. 返回是否需要执行删除动画
     return shouldAnimateRemoval;
   }
 
