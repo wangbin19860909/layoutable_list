@@ -33,12 +33,12 @@ class _AnimationDemoPageState extends State<AnimationDemoPage> {
   bool _toggled = false;
 
   // AnimParams
-  late AnimationParams _animParams;
+  late ValueNotifier<AnimationParams> _animParamsNotifier;
 
   @override
   void initState() {
     super.initState();
-    _animParams = _createAnimParams(toggled: false);
+    _animParamsNotifier = ValueNotifier(_createAnimParams(toggled: false));
   }
 
   AnimationParams _createAnimParams({required bool toggled}) {
@@ -55,11 +55,11 @@ class _AnimationDemoPageState extends State<AnimationDemoPage> {
     return AnimationParams(
       springConfig: springConfig,
       curveConfig: curveConfig,
-      offsetInitial: toggled ? const Offset(150, 0) : Offset.zero,
+      offset: toggled ? const Offset(150, 0) : Offset.zero,
       toOffset: toggled ? const Offset(150, 0) : Offset.zero,
-      scaleInitial: toggled ? 0.5 : 1.0,
+      scale: toggled ? 0.5 : 1.0,
       toScale: toggled ? 0.5 : 1.0,
-      alphaInitial: toggled ? 0.3 : 1.0,
+      alpha: toggled ? 0.3 : 1.0,
       toAlpha: toggled ? 0.3 : 1.0,
     );
   }
@@ -67,51 +67,42 @@ class _AnimationDemoPageState extends State<AnimationDemoPage> {
   void _toggle() {
     setState(() {
       _toggled = !_toggled;
-      // dispose 旧的，用新的 target 重建，避免逐个 setter 触发多次 notifyListeners
-      final oldParams = _animParams;
-      final springConfig = _useSpring
-          ? SpringConfig(stiffness: _stiffness, damping: _damping)
-          : null;
-      final curveConfig = _useSpring
-          ? null
-          : CurveConfig(
-              curve: _curveOptions[_selectedCurve]!,
-              durationMs: _durationMs,
-            );
-
-      _animParams = AnimationParams(
-        springConfig: springConfig,
-        curveConfig: curveConfig,
-        offsetInitial: oldParams.offset.value,
-        toOffset: _toggled ? const Offset(150, 0) : Offset.zero,
-        scaleInitial: oldParams.scale.value,
-        toScale: _toggled ? 0.5 : 1.0,
-        alphaInitial: oldParams.alpha.value,
-        toAlpha: _toggled ? 0.3 : 1.0,
-      );
-      oldParams.dispose();
     });
+    final oldParams = _animParamsNotifier.value;
+    final springConfig = _useSpring
+        ? SpringConfig(stiffness: _stiffness, damping: _damping)
+        : null;
+    final curveConfig = _useSpring
+        ? null
+        : CurveConfig(
+            curve: _curveOptions[_selectedCurve]!,
+            durationMs: _durationMs,
+          );
+
+    _animParamsNotifier.value = AnimationParams(
+      springConfig: springConfig,
+      curveConfig: curveConfig,
+      offset: oldParams.offset,
+      toOffset: _toggled ? const Offset(150, 0) : Offset.zero,
+      scale: oldParams.scale,
+      toScale: _toggled ? 0.5 : 1.0,
+      alpha: oldParams.alpha,
+      toAlpha: _toggled ? 0.3 : 1.0,
+    );
   }
 
   void _reset() {
-    setState(() {
-      _toggled = false;
-      _animParams.dispose();
-      _animParams = _createAnimParams(toggled: false);
-    });
+    _toggled = false;
+    _animParamsNotifier.value = _createAnimParams(toggled: false);
   }
 
   void _rebuildAnimParams() {
-    final wasToogled = _toggled;
-    setState(() {
-      _animParams.dispose();
-      _animParams = _createAnimParams(toggled: wasToogled);
-    });
+    _animParamsNotifier.value = _createAnimParams(toggled: _toggled);
   }
 
   @override
   void dispose() {
-    _animParams.dispose();
+    _animParamsNotifier.dispose();
     super.dispose();
   }
 
@@ -128,7 +119,7 @@ class _AnimationDemoPageState extends State<AnimationDemoPage> {
               color: Colors.grey.shade100,
               child: Center(
                 child: AnimationWidget(
-                  animParams: _animParams,
+                  animParams: _animParamsNotifier,
                   child: Container(
                     width: 120,
                     height: 120,
@@ -167,7 +158,9 @@ class _AnimationDemoPageState extends State<AnimationDemoPage> {
                       Switch(
                         value: _useSpring,
                         onChanged: (v) {
-                          _useSpring = v;
+                          setState(() {
+                            _useSpring = v;
+                          });
                           _rebuildAnimParams();
                         },
                       ),

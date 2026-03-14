@@ -1,4 +1,4 @@
-import 'package:flutter/animation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' show sqrt;
 
@@ -43,56 +43,47 @@ class AnimationParams {
   final SpringConfig? springConfig;
   final CurveConfig curveConfig;
 
-  final ValueNotifier<Offset> offset;
+  Offset offset;
   final Offset toOffset;
 
-  final ValueNotifier<double> scale;
+  double scale;
   final double toScale;
 
-  final ValueNotifier<double> alpha;
+  double alpha;
   final double toAlpha;
 
   AnimationParams({
     this.springConfig,
     CurveConfig? curveConfig,
-    required Offset offsetInitial,
+    required this.offset,
     required this.toOffset,
-    required double scaleInitial,
+    required this.scale,
     required this.toScale,
-    required double alphaInitial,
+    required this.alpha,
     required this.toAlpha,
   })  : curveConfig = springConfig != null
             ? const CurveConfig(curve: Curves.linear)
-            : (curveConfig ?? const CurveConfig()),
-        offset = ValueNotifier(offsetInitial),
-        scale = ValueNotifier(scaleInitial),
-        alpha = ValueNotifier(alphaInitial);
+            : (curveConfig ?? const CurveConfig());
 
-  void dispose() {
-    offset.dispose();
-    scale.dispose();
-    alpha.dispose();
-  }
-
-  /// 复制并替换任意参数，current 值默认从当前 ValueNotifier 中取
+  /// 复制并替换任意参数，current 值默认从当前值中取
   AnimationParams copy({
     SpringConfig? springConfig,
     CurveConfig? curveConfig,
-    Offset? offsetInitial,
+    Offset? offset,
     Offset? toOffset,
-    double? scaleInitial,
+    double? scale,
     double? toScale,
-    double? alphaInitial,
+    double? alpha,
     double? toAlpha,
   }) {
     return AnimationParams(
       springConfig: springConfig ?? this.springConfig,
       curveConfig: curveConfig ?? this.curveConfig,
-      offsetInitial: offsetInitial ?? offset.value,
+      offset: offset ?? this.offset,
       toOffset: toOffset ?? this.toOffset,
-      scaleInitial: scaleInitial ?? scale.value,
+      scale: scale ?? this.scale,
       toScale: toScale ?? this.toScale,
-      alphaInitial: alphaInitial ?? alpha.value,
+      alpha: alpha ?? this.alpha,
       toAlpha: toAlpha ?? this.toAlpha,
     );
   }
@@ -100,7 +91,7 @@ class AnimationParams {
 
 class AnimationWidget extends StatefulWidget {
   final Widget child;
-  final AnimationParams animParams;
+  final ValueListenable<AnimationParams> animParams;
 
   const AnimationWidget({
     super.key,
@@ -124,9 +115,9 @@ class _AnimationWidgetState extends State<AnimationWidget>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: widget.animParams.curveConfig.durationMs),
+      duration: Duration(milliseconds: widget.animParams.value.curveConfig.durationMs),
     );
-
+    widget.animParams.addListener(_onParamsChanged);
     _startAnimations();
   }
 
@@ -134,20 +125,27 @@ class _AnimationWidgetState extends State<AnimationWidget>
   void didUpdateWidget(AnimationWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.animParams != widget.animParams) {
-      _controller.reset();
-      _controller.duration = Duration(milliseconds: widget.animParams.curveConfig.durationMs);
-      _startAnimations();
+      oldWidget.animParams.removeListener(_onParamsChanged);
+      widget.animParams.addListener(_onParamsChanged);
+      _onParamsChanged();
     }
   }
 
   @override
   void dispose() {
+    widget.animParams.removeListener(_onParamsChanged);
     _controller.dispose();
     super.dispose();
   }
 
+  void _onParamsChanged() {
+    _controller.reset();
+    _controller.duration = Duration(milliseconds: widget.animParams.value.curveConfig.durationMs);
+    _startAnimations();
+  }
+
   void _startAnimations() {
-    final params = widget.animParams;
+    final params = widget.animParams.value;
     final isSpring = params.springConfig != null;
 
     final Animation<double> parent = isSpring
@@ -155,24 +153,24 @@ class _AnimationWidgetState extends State<AnimationWidget>
         : _controller.drive(CurveTween(curve: params.curveConfig.curve));
 
     _offsetAnimation = Tween<Offset>(
-      begin: params.offset.value,
+      begin: params.offset,
       end: params.toOffset,
     ).animate(parent);
 
     _scaleAnimation = Tween<double>(
-      begin: params.scale.value,
+      begin: params.scale,
       end: params.toScale,
     ).animate(parent);
 
     _alphaAnimation = Tween<double>(
-      begin: params.alpha.value,
+      begin: params.alpha,
       end: params.toAlpha,
     ).animate(parent);
 
     // 所有属性都已在目标值，跳过动画
-    if (params.offset.value == params.toOffset &&
-        params.scale.value == params.toScale &&
-        params.alpha.value == params.toAlpha) {
+    if (params.offset == params.toOffset &&
+        params.scale == params.toScale &&
+        params.alpha == params.toAlpha) {
       _controller.value = 1.0;
       return;
     }
@@ -201,17 +199,17 @@ class _AnimationWidgetState extends State<AnimationWidget>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final params = widget.animParams;
-        params.offset.value = _offsetAnimation.value;
-        params.scale.value = _scaleAnimation.value;
-        params.alpha.value = _alphaAnimation.value.clamp(0.0, 1.0);
+        final params = widget.animParams.value;
+        params.offset = _offsetAnimation.value;
+        params.scale = _scaleAnimation.value;
+        params.alpha = _alphaAnimation.value.clamp(0.0, 1.0);
 
         return Transform.translate(
-          offset: params.offset.value,
+          offset: params.offset,
           child: Transform.scale(
-            scale: params.scale.value,
+            scale: params.scale,
             child: Opacity(
-              opacity: params.alpha.value,
+              opacity: params.alpha,
               child: widget.child,
             ),
           ),
@@ -220,6 +218,4 @@ class _AnimationWidgetState extends State<AnimationWidget>
       child: widget.child,
     );
   }
-
-  
 }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../service_holder.dart';
 import '../layoutable_list_widget.dart';
-import 'item_animator_params.dart';
+import 'animation_widget.dart';
+import 'item_animator.dart';
 
 /// 列表适配器
 ///
@@ -23,11 +24,9 @@ class ListAdapter<T> extends ChangeNotifier {
 
   final int Function(T) idExtractor;
   final Duration animationDuration;
+  final SpringConfig? springConfig;
 
-  /// 为每个 item 维护的动画参数
-  final Map<int, ValueNotifier<ItemAnimatorParams>> _animatorParams = {};
-  
-  /// id -> index 的映射，用于快速查找（使用 String 作为 key 更通用）
+  final Map<String, ValueNotifier<ItemAnimatorParams>> _animatorParams = {};
   final Map<String, int> _idToIndexMap = {};
 
   ListAdapter({
@@ -35,13 +34,13 @@ class ListAdapter<T> extends ChangeNotifier {
     required ServiceHolder<LayoutManager> layoutManagerHolder,
     required this.idExtractor,
     this.animationDuration = const Duration(milliseconds: 400),
+    this.springConfig,
   }) : _layoutManagerHolder = layoutManagerHolder,
        _items = List.from(items) {
     _initializeParams();
     _rebuildIndexMap();
   }
 
-  /// 重建 id -> index 映射
   void _rebuildIndexMap() {
     _idToIndexMap.clear();
     for (int i = 0; i < _items.length; i++) {
@@ -50,12 +49,10 @@ class ListAdapter<T> extends ChangeNotifier {
     }
   }
 
-  /// 根据 Key 查找 item 的当前 index（用于 findChildIndexCallback）
   int? findChildIndex(String itemId) {
     return _idToIndexMap[itemId];
   }
   
-  /// 根据 index 获取 item 的 id（返回 String 更通用）
   String getItemId(int index) {
     if (index < 0 || index >= _items.length) {
       throw RangeError('Index $index out of range');
@@ -63,7 +60,6 @@ class ListAdapter<T> extends ChangeNotifier {
     return idExtractor(_items[index]).toString();
   }
   
-  /// 根据 index 获取 item
   T getItem(int index) {
     if (index < 0 || index >= _items.length) {
       throw RangeError('Index $index out of range');
@@ -71,120 +67,109 @@ class ListAdapter<T> extends ChangeNotifier {
     return _items[index];
   }
 
-  /// 初始化所有 item 的动画参数
   void _initializeParams() {
     for (final item in _items) {
-      final id = idExtractor(item);
-      // 初始状态：所有 item 都在正确位置，无需动画
+      final id = idExtractor(item).toString();
       _animatorParams[id] = ValueNotifier(
-        ItemAnimatorParams(offset: ValueNotifier(Offset.zero)),
+        ItemAnimatorParams(
+          offset: Offset.zero,
+          toOffset: Offset.zero,
+          scale: 1.0,
+          alpha: 1.0,
+        ),
       );
     }
   }
 
-  /// 获取当前的 item 列表（只读）
   List<T> get items => List.unmodifiable(_items);
 
-  /// 监听指定 item 的动画参数
-  ///
-  /// 返回一个 ValueNotifier，ItemAnimator 可以监听它来响应参数变化
-  ValueNotifier<ItemAnimatorParams> listenAnimatorParams(int id) {
+  ValueNotifier<ItemAnimatorParams> listenAnimatorParams(String id) {
     if (!_animatorParams.containsKey(id)) {
       throw StateError('AnimatorParams for id $id not found');
     }
     return _animatorParams[id]!;
   }
 
-  /// 当 ItemAnimator 被卸载时调用
-  ///
-  /// 重置 params 为 zero，避免下次重新挂载时执行不必要的动画
-  void onItemUnmounted(int id) {
+  void onItemUnmounted(String id) {
     if (_animatorParams.containsKey(id)) {
-      // 直接替换整个 ValueNotifier，而不是修改 value
-      // 这样不会触发旧的监听器（旧的 ValueNotifier 正在 dispose）
       _animatorParams[id] = ValueNotifier(
-        ItemAnimatorParams(offset: ValueNotifier(Offset.zero)),
+        ItemAnimatorParams(
+          offset: Offset.zero,
+          toOffset: Offset.zero,
+          scale: 1.0,
+          alpha: 1.0,
+        ),
       );
     }
   }
 
-  /// 添加 item 到指定位置
   void addItem(T item, {int index = 0}) {
     index = index.clamp(0, _items.length);
-    final itemId = idExtractor(item);
+    final itemId = idExtractor(item).toString();
     
+    // 新 item：offset = toOffset = Offset.zero，不执行动画
     _animatorParams[itemId] = ValueNotifier(
-      ItemAnimatorParams(offset: null, animated: false), // 新建 item 不执行动画
+      ItemAnimatorParams(
+        offset: Offset.zero,
+        toOffset: Offset.zero,
+        scale: 1.0,
+        alpha: 1.0,
+      ),
     );
         
-    // 2. 插入数据
     _items.insert(index, item);
 
     for (int i = 0; i < _items.length; i++) {
-      final id = idExtractor(_items[i]);
-      if (id == itemId) {
-        continue; // 跳过新添加的 item
-      }
+      final id = idExtractor(_items[i]).toString();
+      if (id == itemId) continue;
 
       final notifier = _animatorParams[id]!;
       
-      // 如果 item 从未被渲染过（没有监听器），设置为 zero 避免后续执行 add 动画
       if (!notifier.hasListeners) {
-        notifier.value = ItemAnimatorParams(offset: ValueNotifier(Offset.zero));
+        notifier.value = ItemAnimatorParams(
+          offset: Offset.zero,
+          toOffset: Offset.zero,
+          scale: 1.0,
+          alpha: 1.0,
+        );
         continue;
       }
 
       final currentParams = notifier.value;
 
-      // 计算 item 在旧布局中的位置
       final oldIndex = i > index ? i - 1 : i;
       final oldLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: oldIndex,
         itemCount: _items.length - 1,
       );
 
-      // 计算 item 在新布局中的位置
       final newLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: i,
         itemCount: _items.length,
       );
 
-      // 计算布局位置差异
       final layoutDelta = Offset(
         oldLayoutParams.rect.left - newLayoutParams.rect.left,
         oldLayoutParams.rect.top - newLayoutParams.rect.top,
       );
 
-      // 当前的视觉偏移
-      final currentVisualOffset = currentParams.offset?.value ?? Offset.zero;
-      // 新的 offset = 当前视觉偏移 + 布局差异
+      final currentVisualOffset = currentParams.offset;
       final newOffset = currentVisualOffset + layoutDelta;
 
-      // 更新 offset
-      if (currentParams.offset != null) {
-        currentParams.offset!.value = newOffset;
-        // 创建新的 params 以触发动画（animationId 自动递增）
-        final newParams = ItemAnimatorParams(
-          offset: currentParams.offset,
-          size: newLayoutParams.rect.size,
-        );
-        notifier.value = newParams;
-      } else {
-        final newParams = ItemAnimatorParams(
-          offset: ValueNotifier(newOffset),
-          size: newLayoutParams.rect.size,
-        );
-        notifier.value = newParams;
-      }
+      notifier.value = ItemAnimatorParams(
+        springConfig: springConfig,
+        offset: newOffset,
+        toOffset: Offset.zero,
+        scale: 1.0,
+        alpha: 1.0,
+        size: newLayoutParams.rect.size,
+      );
     }
 
     notifyListeners();
     _rebuildIndexMap();
   }
 
-  /// 移除指定的 item
-  ///
-  /// 返回被删除的 item 是否需要执行删除动画（是否已被渲染）
   bool removeItem(T item) {
     final index = _items.indexOf(item);
     if (index != -1) {
@@ -193,63 +178,49 @@ class ListAdapter<T> extends ChangeNotifier {
     return false;
   }
 
-  /// 移除指定索引的 item
-  ///
-  /// 返回被删除的 item 是否需要执行删除动画（是否已被渲染）
   bool removeAt(int removingIndex) {
     if (removingIndex < 0 || removingIndex >= _items.length) {
       throw RangeError('Index $removingIndex out of range');
     }
 
-    final removingItemId = idExtractor(_items[removingIndex]);
+    final removingItemId = idExtractor(_items[removingIndex]).toString();
     final removingNotifier = _animatorParams[removingItemId]!;
-    
-    // 检查被删除的 item 是否已被渲染
     final shouldAnimateRemoval = removingNotifier.hasListeners;
 
-    // 获取当前的滚动状态
     final currentScrollOffset = layoutManager.scrollOffset;
     final viewportExtent = layoutManager.viewportMainAxisExtent;
-    
-    // 计算删除前后的最大滚动距离
     final oldMaxScrollOffset = layoutManager.getMaxScrollOffset(_items.length);
     final newMaxScrollOffset = layoutManager.getMaxScrollOffset(_items.length - 1);
-    
-    // 判断是否处于尾部 overscroll 状态
-    final isOverscrolling = currentScrollOffset < 0 || currentScrollOffset > (oldMaxScrollOffset - viewportExtent);
-    
-    // 预测删除后的 scrollOffset
-    // 如果处于 overscroll 状态，使用当前 scrollOffset（因为回弹动画会处理）
-    // 否则，预测 ScrollView 会调整到的位置
-    final newScrollOffset = isOverscrolling 
-        ? currentScrollOffset 
+    final isOverscrolling = currentScrollOffset < 0 ||
+        currentScrollOffset > (oldMaxScrollOffset - viewportExtent);
+    final newScrollOffset = isOverscrolling
+        ? currentScrollOffset
         : currentScrollOffset.clamp(0.0, newMaxScrollOffset - viewportExtent);
 
-    // 1. 计算其他 item 的新位置（在删除数据之前）
     for (int i = 0; i < _items.length; i++) {
-      if (i == removingIndex) {
-        continue; // 跳过被删除的 item
-      }
+      if (i == removingIndex) continue;
 
-      final itemId = idExtractor(_items[i]);
+      final itemId = idExtractor(_items[i]).toString();
       final notifier = _animatorParams[itemId]!;
       
-      // 如果 item 从未被渲染过（没有监听器），设置为 zero 避免后续执行 add 动画
       if (!notifier.hasListeners) {
-        notifier.value = ItemAnimatorParams(offset: ValueNotifier(Offset.zero));
+        notifier.value = ItemAnimatorParams(
+          offset: Offset.zero,
+          toOffset: Offset.zero,
+          scale: 1.0,
+          alpha: 1.0,
+        );
         continue;
       }
 
       final currentParams = notifier.value;
 
-      // 计算 item 在旧布局中的位置（使用当前 scrollOffset）
       final oldLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: i,
         itemCount: _items.length,
         scrollOffset: currentScrollOffset,
       );
 
-      // 计算 item 在新布局中的位置（使用预测的新 scrollOffset）
       final newIndex = i > removingIndex ? i - 1 : i;
       final newLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: newIndex,
@@ -257,54 +228,34 @@ class ListAdapter<T> extends ChangeNotifier {
         scrollOffset: newScrollOffset,
       );
 
-      // 计算布局位置差异
       final layoutDelta = Offset(
         oldLayoutParams.rect.left - newLayoutParams.rect.left,
         oldLayoutParams.rect.top - newLayoutParams.rect.top,
       );
 
-      // 当前的视觉偏移
-      final currentVisualOffset = currentParams.offset?.value ?? Offset.zero;
-
-      // 新的 offset = 当前视觉偏移 + 布局差异
+      final currentVisualOffset = currentParams.offset;
       final newOffset = currentVisualOffset + layoutDelta;
 
-      // 更新 params
-      if (currentParams.offset != null) {
-        // 创建新的 params 以触发动画（animationId 自动递增）
-        notifier.value = ItemAnimatorParams(
-          offset: ValueNotifier(newOffset),
-          size: newLayoutParams.rect.size,
-        );
-      } else {
-        notifier.value = ItemAnimatorParams(
-          offset: ValueNotifier(newOffset),
-          size: newLayoutParams.rect.size,
-        );
-      }
+      notifier.value = ItemAnimatorParams(
+        springConfig: springConfig,
+        offset: newOffset,
+        toOffset: Offset.zero,
+        scale: 1.0,
+        alpha: 1.0,
+        size: newLayoutParams.rect.size,
+      );
     }
 
-    // 2. 删除数据
     _items.removeAt(removingIndex);
-
-    // 3. 清理被删除 item 的 params
     _animatorParams.remove(removingItemId);
-
-    // 4. 通知 UI 刷新
     notifyListeners();
-    
-    // 5. 重建索引映射
     _rebuildIndexMap();
-    
-    // 6. 返回是否需要执行删除动画
     return shouldAnimateRemoval;
   }
 
   @override
   void dispose() {
-    // 释放所有 ValueNotifier 和 ItemAnimatorParams
     for (final notifier in _animatorParams.values) {
-      notifier.value.dispose();
       notifier.dispose();
     }
     _animatorParams.clear();

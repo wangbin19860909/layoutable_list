@@ -23,10 +23,10 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   int _nextId = 0;
   
   // 追踪新添加的 item，用于执行添加动画
-  final Set<int> _newItemIds = {};
+  final Set<String> _newItemIds = {};
   
   // 追踪正在拖拽的 item
-  int? _draggingItemId;
+  String? _draggingItemId;
 
   @override
   void initState() {
@@ -85,7 +85,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
     _nextId++;
     
     // 标记为新添加的 item
-    _newItemIds.add(newItem.id);
+    _newItemIds.add(newItem.id.toString());
     
     _adapter.addItem(newItem, index: 0);
     
@@ -93,7 +93,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() {
-          _newItemIds.remove(newItem.id);
+          _newItemIds.remove(newItem.id.toString());
         });
       }
     });
@@ -106,19 +106,17 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   }
 
   @override
-  void onDragStart(int itemId) {
+  void onDragStart(String itemId) {
     setState(() {
       _draggingItemId = itemId;
     });
   }
 
   @override
-  void onDragMove(int itemId, Offset offset) {
-    // 可以在这里实时更新 UI，比如显示删除提示
-  }
+  void onDragMove(String itemId, Offset offset) {}
 
   @override
-  void onDragEnd(int itemId, DragResult result) {
+  void onDragEnd(String itemId, DragResult result) {
     setState(() {
       _draggingItemId = null;
     });
@@ -128,10 +126,9 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
         // 回弹，不做任何操作
         break;
         
-      case Swipe(:final direction, :final velocity, :final offset):
-        // 根据方向删除 item
+      case Swipe(:final direction):
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
-          final item = _adapter.items.firstWhere((item) => item.id == itemId);
+          final item = _adapter.items.firstWhere((item) => item.id.toString() == itemId);
           _adapter.removeItem(item);
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -172,8 +169,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
           (context, index) {
             final item = _adapter.getItem(index);
             final itemId = _adapter.getItemId(index);
-            final itemIdInt = int.parse(itemId); // ItemAnimator 需要 int
-            final isNew = _newItemIds.contains(itemIdInt);
+            final isNew = _newItemIds.contains(itemId);
 
             return KeyedSubtree(
               key: ValueKey(itemId),
@@ -193,8 +189,8 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                 },
                 child: ItemDraggable(
                   key: ValueKey('draggable_$itemId'),
-                  itemId: itemIdInt,
-                  paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
+                  itemId: itemId,
+                  paramsNotifier: _adapter.listenAnimatorParams(itemId),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -202,12 +198,12 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                     offsetThreshold: 300.0,
                   ),
                   dragGestureSettings: const DeviceGestureSettings(
-                    touchSlop: 30.0,  // 增大阈值，让拖拽更难触发（接近 80 度才触发）
+                    touchSlop: 30.0,
                   ),
                   child: ItemAnimator(
                     key: ValueKey('animator_$itemId'),
-                    itemId: itemIdInt,
-                    paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
+                    itemId: itemId,
+                    paramsNotifier: _adapter.listenAnimatorParams(itemId),
                     layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
                     onDispose: _adapter.onItemUnmounted,
                     child: _buildCard(item),

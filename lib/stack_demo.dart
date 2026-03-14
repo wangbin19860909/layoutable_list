@@ -5,6 +5,7 @@ import 'recents/layoutable_list_widget.dart';
 import 'recents/algorithms/stack_layout_algorithm.dart';
 import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
+import 'recents/animator/animation_widget.dart';
 import 'recents/physics/limited_overscroll_physics.dart';
 import 'recents/item_draggable.dart';
 
@@ -23,10 +24,10 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   int _nextId = 0;
   
   // 追踪新添加的 item，用于执行添加动画
-  final Set<int> _newItemIds = {};
+  final Set<String> _newItemIds = {};
   
   // 追踪正在拖拽的 item
-  int? _draggingItemId;
+  String? _draggingItemId;
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
       items: initialItems,
       layoutManagerHolder: _layoutManagerHolder,
       idExtractor: (item) => item.id,
+      springConfig: const SpringConfig(stiffness: 200.0, damping: 22.0),
     );
     
     _adapter.addListener(_onAdapterChanged);
@@ -85,7 +87,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     _nextId++;
     
     // 标记为新添加的 item
-    _newItemIds.add(newItem.id);
+    _newItemIds.add(newItem.id.toString());
     
     _adapter.addItem(newItem, index: 0);
     
@@ -93,7 +95,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() {
-          _newItemIds.remove(newItem.id);
+          _newItemIds.remove(newItem.id.toString());
         });
       }
     });
@@ -106,19 +108,19 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   }
 
   @override
-  void onDragStart(int itemId) {
+  void onDragStart(String itemId) {
     setState(() {
       _draggingItemId = itemId;
     });
   }
 
   @override
-  void onDragMove(int itemId, Offset offset) {
+  void onDragMove(String itemId, Offset offset) {
     // 可以在这里实时更新 UI
   }
 
   @override
-  void onDragEnd(int itemId, DragResult result) {
+  void onDragEnd(String itemId, DragResult result) {
     setState(() {
       _draggingItemId = null;
     });
@@ -131,7 +133,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
       case Swipe(:final direction):
         // 根据方向删除 item
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
-          final item = _adapter.items.firstWhere((item) => item.id == itemId);
+          final item = _adapter.items.firstWhere((item) => item.id.toString() == itemId);
           _adapter.removeItem(item);
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -175,8 +177,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
           (context, index) {
             final item = _adapter.getItem(index);
             final itemId = _adapter.getItemId(index);
-            final itemIdInt = int.parse(itemId); // ItemAnimator 需要 int
-            final isNew = _newItemIds.contains(itemIdInt);
+            final isNew = _newItemIds.contains(itemId);
 
             return KeyedSubtree(
               key: ValueKey(itemId),
@@ -196,8 +197,8 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                 },
                 child: ItemDraggable(
                   key: ValueKey('draggable_$itemId'),
-                  itemId: itemIdInt,
-                  paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
+                  itemId: itemId,
+                  paramsNotifier: _adapter.listenAnimatorParams(itemId),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -209,8 +210,8 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                   ),
                   child: ItemAnimator(
                     key: ValueKey('animator_$itemId'),
-                    itemId: itemIdInt,
-                    paramsNotifier: _adapter.listenAnimatorParams(itemIdInt),
+                    itemId: itemId,
+                    paramsNotifier: _adapter.listenAnimatorParams(itemId),
                     layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
                     onDispose: _adapter.onItemUnmounted,
                     child: _buildCard(item),

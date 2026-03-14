@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'animator/item_animator_params.dart';
+import 'animator/item_animator.dart';
 import 'drag_gesture_detector.dart';
 
 /// Swipe 触发阈值配置
@@ -56,14 +56,9 @@ class Swipe extends DragResult {
 
 /// 拖拽状态监听器
 abstract class ItemDragListener {
-  /// 开始拖拽
-  void onDragStart(int itemId);
-  
-  /// 拖拽移动中
-  void onDragMove(int itemId, Offset offset);
-  
-  /// 拖拽结束
-  void onDragEnd(int itemId, DragResult result);
+  void onDragStart(String itemId);
+  void onDragMove(String itemId, Offset offset);
+  void onDragEnd(String itemId, DragResult result);
 }
 
 /// Item 拖拽组件
@@ -73,7 +68,7 @@ abstract class ItemDragListener {
 /// 2. 独立使用：不传 paramsNotifier，自己实现 Transform
 class ItemDraggable extends StatefulWidget {
   /// Item ID
-  final int itemId;
+  final String itemId;
   
   /// 动画参数通知器（可选）
   /// - 如果传入，则通过修改 params 来控制位置
@@ -231,21 +226,15 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
     final delta = _getCrossAxisDelta(details.delta);
     
     if (widget.paramsNotifier != null) {
-      // 模式 1：使用 copyWith 更新 offset，animated=false，offset 和 toOffset 相同
+      // 模式 1：offset 和 toOffset 相同，不触发动画
       final params = widget.paramsNotifier!.value;
-      final currentOffset = params.offset?.value ?? Offset.zero;
+      final currentOffset = params.offset;
       final newOffset = currentOffset + delta;
       
-      // 只更新 offset、toOffset 和 animated
-      final newParams = params.copyWith(
-        offset: ValueNotifier(newOffset),
+      widget.paramsNotifier!.value = params.copy(
+        offset: newOffset,
         toOffset: newOffset,
-        animated: false,
       );
-      widget.paramsNotifier!.value = newParams;
-      
-      // 释放旧的 params
-      params.dispose();
     } else {
       // 模式 2：更新本地 offset
       setState(() {
@@ -254,7 +243,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
     }
     
     // 通知监听器
-    final currentOffset = widget.paramsNotifier?.value.offset?.value ?? _currentOffset;
+    final currentOffset = widget.paramsNotifier?.value.offset ?? _currentOffset;
     widget.listener?.onDragMove(widget.itemId, currentOffset);
   }
 
@@ -264,7 +253,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
     _isDragging = false;
     
     // 获取当前偏移量
-    final currentOffset = widget.paramsNotifier?.value.offset?.value ?? _currentOffset;
+    final currentOffset = widget.paramsNotifier?.value.offset ?? _currentOffset;
     
     // 计算交叉轴方向的速度
     final velocity = _getCrossAxisVelocity(details.velocity.pixelsPerSecond);
@@ -313,9 +302,9 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
   /// 执行回弹动画
   void _snapBack({double velocity = 0.0}) {
     if (widget.paramsNotifier != null) {
-      // 模式 1：自己执行动画，每帧更新 params.offset.value
+      // 模式 1：自己执行动画，每帧更新 params.offset
       final params = widget.paramsNotifier!.value;
-      final currentOffset = params.offset?.value ?? Offset.zero;
+      final currentOffset = params.offset;
       
       if (currentOffset == Offset.zero) {
         return;
@@ -324,13 +313,11 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
       // 清理旧的动画控制器
       _mode1SnapBackController?.dispose();
       
-      // 创建新的动画控制器（保存为成员变量）
       _mode1SnapBackController = AnimationController(
         vsync: this,
         duration: widget.snapBackDuration,
       );
       
-      // 创建动画
       _mode1SnapBackAnimation = Tween<Offset>(
         begin: currentOffset,
         end: Offset.zero,
@@ -339,25 +326,17 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
         curve: widget.snapBackCurve,
       ));
       
-      // 监听动画，每帧更新 params
       _mode1SnapBackAnimation!.addListener(() {
         if (mounted && widget.paramsNotifier != null) {
           final currentParams = widget.paramsNotifier!.value;
-          if (currentParams.offset != null) {
-            // 直接更新 offset.value，不创建新的 params
-            final newValue = _mode1SnapBackAnimation!.value;
-            final newParams = params.copyWith(
-              offset: ValueNotifier(newValue),
-              toOffset: newValue,
-              animated: false,
-            );
-
-            widget.paramsNotifier!.value = newParams;
-          }
+          final newValue = _mode1SnapBackAnimation!.value;
+          widget.paramsNotifier!.value = currentParams.copy(
+            offset: newValue,
+            toOffset: newValue,
+          );
         }
       });
       
-      // 动画完成后清理
       _mode1SnapBackController!.addStatusListener((status) {
         if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
           if (mounted) {
@@ -368,13 +347,8 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
         }
       });
       
-      // 使用 fling 启动动画，支持初速度
       final distance = currentOffset.distance;
       final normalizedVelocity = distance > 0 ? velocity / distance : 0.0;
-      // 进一步降低速度系数，让动画更慢更平滑
-      // 速度 4000 px/s，距离 109 px → 归一化 36.6
-      // 除以 200 后 → 0.18，更温和
-      // 注意：使用正值，fling 是从当前位置向目标位置运动
       final clampedVelocity = (normalizedVelocity / 200.0).clamp(0.0, 0.5);
       
       _mode1SnapBackController!.fling(velocity: clampedVelocity);
