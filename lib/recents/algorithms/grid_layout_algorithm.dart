@@ -72,12 +72,13 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double crossAxisExtent,
     required double itemWidth,
     required double itemHeight,
-    required double itemExtent,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     bool reverse = false,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
+    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final startTime = DateTime.now();
     
     // 解析 padding 为具体的 EdgeInsets，使用实际的 textDirection
@@ -177,7 +178,6 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   @override
   int getMinVisibleIndex({
     required double scrollOffset,
-    required double itemExtent,
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
@@ -187,31 +187,27 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required bool reverse,
     required double cacheExtent,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
     if (itemCount == 0) return 0;
-
-    // 解析 padding
+    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final resolvedPadding = padding.resolve(textDirection);
     final double mainAxisPaddingFromEdgeInsets = scrollDirection == Axis.vertical 
         ? resolvedPadding.top 
         : resolvedPadding.left;
 
-    // 减去总的主轴 padding（EdgeInsets + 内部 padding）后再计算第一个可见的主轴索引
     final double totalMainAxisPadding = mainAxisPaddingFromEdgeInsets + mainAxisPadding;
     final int firstVisibleMainAxis = math.max(
       0,
       ((scrollOffset - totalMainAxisPadding - cacheExtent) / (itemExtent + mainAxisSpacing)).floor(),
     );
 
-    final result = firstVisibleMainAxis * spanCount;
-    
-    return result;
+    return firstVisibleMainAxis * spanCount;
   }
 
   @override
   int getMaxVisibleIndex({
     required double scrollOffset,
-    required double itemExtent,
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
@@ -221,28 +217,23 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required bool reverse,
     required double cacheExtent,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
     if (itemCount == 0) return 0;
-
-    // 解析 padding
+    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final resolvedPadding = padding.resolve(textDirection);
     final double mainAxisPaddingFromEdgeInsets = scrollDirection == Axis.vertical 
         ? resolvedPadding.top 
         : resolvedPadding.left;
 
-    final double viewportExtent = mainAxisExtent;
-    final double viewportEnd = scrollOffset + viewportExtent + cacheExtent;
-    
-    // 减去总的主轴 padding（EdgeInsets + 内部 padding）后再计算最后一个可见的主轴索引
+    final double viewportEnd = scrollOffset + mainAxisExtent + cacheExtent;
     final double totalMainAxisPadding = mainAxisPaddingFromEdgeInsets + mainAxisPadding;
     final int lastVisibleMainAxis = ((viewportEnd - totalMainAxisPadding) / (itemExtent + mainAxisSpacing)).floor();
 
-    final result = math.min(
+    return math.min(
       (lastVisibleMainAxis + 1) * spanCount - 1,
       itemCount - 1,
     );
-
-    return result;
   }
 
   @override

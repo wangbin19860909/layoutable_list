@@ -1,11 +1,19 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'layout_algorithm.dart';
 
 /// MIUI 堆叠布局算法实现
 /// 参考 MIUI TaskStackViewsAlgorithmStack 实现
 /// 传入 index 和滚动信息，返回该 item 的布局参数
 class StackLayoutAlgorithm extends LayoutAlgorithm {
+  @override
+  double? calculatePaintExtent(
+    SliverConstraints constraints, {
+    required double from,
+    required double to,
+  }) => constraints.viewportMainAxisExtent;
+
   @override
   double computeMaxScrollOffset({
     required double itemExtent,
@@ -53,12 +61,13 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double crossAxisExtent,
     required double itemWidth,
     required double itemHeight,
-    required double itemExtent,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     bool reverse = false,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
+    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final resolvedPadding = padding.resolve(textDirection);
     // 堆叠只支持横向滚动，所以下面的计算都是基于这个前提
     final visibleWidth = mainAxisExtent - resolvedPadding.horizontal;
@@ -137,7 +146,6 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
   @override
   int getMinVisibleIndex({
     required double scrollOffset,
-    required double itemExtent,
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
@@ -147,17 +155,14 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required bool reverse,
     required double cacheExtent,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
     if (itemCount == 0) return 0;
-
-    // 内部转换为逻辑位置
+    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final scrollPosition = _scrollOffsetToPosition(scrollOffset, itemExtent);
     
-    // 从当前滚动位置开始估算第一个可能可见的索引
     int startIndex = math.max(scrollPosition.floor() - 1, 0);
 
-    // 向前搜索，找到第一个可能可见的卡片
-    // 检查 alpha > 0 来判断是否可见
     while (startIndex > 0) {
       var params = getLayoutParamsWithCache(
         index: startIndex,
@@ -166,21 +171,17 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         crossAxisExtent: crossAxisExtent,
         itemWidth: itemWidth,
         itemHeight: itemHeight,
-        itemExtent: itemExtent,
         itemCount: itemCount,
         padding: padding,
         reverse: reverse,
         textDirection: textDirection,
+        scrollDirection: scrollDirection,
       );
 
       if (reverse) {
-        if (params.rect.left > mainAxisExtent + cacheExtent) {
-          break;
-        }
+        if (params.rect.left > mainAxisExtent + cacheExtent) break;
       } else {
-        if (params.rect.right < -cacheExtent) {
-          break;
-        }
+        if (params.rect.right < -cacheExtent) break;
       }
       
       startIndex--;
@@ -192,7 +193,6 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
   @override
   int getMaxVisibleIndex({
     required double scrollOffset,
-    required double itemExtent,
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
@@ -202,16 +202,14 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required bool reverse,
     required double cacheExtent,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
     if (itemCount == 0) return 0;
-
-    // 内部转换为逻辑位置
+    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final scrollPosition = _scrollOffsetToPosition(scrollOffset, itemExtent);
     
-    // 从当前滚动位置开始估算，向后搜索
     int endIndex = math.min(scrollPosition.floor() + 4, itemCount - 1);
 
-    // 向后搜索，找到第一个完全透明的 item
     while (endIndex < itemCount) {
       var params = getLayoutParamsWithCache(
         index: endIndex,
@@ -220,20 +218,17 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         crossAxisExtent: crossAxisExtent,
         itemWidth: itemWidth,
         itemHeight: itemHeight,
-        itemExtent: itemExtent,
         itemCount: itemCount,
         padding: padding,
         reverse: reverse,
         textDirection: textDirection,
+        scrollDirection: scrollDirection,
       );
-      // 如果这个卡片不可见（alpha == 0），则返回这个索引
       if (params.alpha == 0) break;
       endIndex++;
     }
 
-    endIndex = math.min(endIndex, itemCount - 1);
-
-    return endIndex;
+    return math.min(endIndex, itemCount - 1);
   }
 
   // ========== 私有计算方法 ==========

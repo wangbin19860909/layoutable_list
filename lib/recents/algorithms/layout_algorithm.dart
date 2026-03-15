@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 /// 布局参数
 /// 
@@ -108,18 +109,16 @@ abstract class LayoutAlgorithm {
     required double crossAxisExtent,
     required double itemWidth,
     required double itemHeight,
-    required double itemExtent,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     required bool reverse,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   }) {
-    // 如果有缓存且缓存中存在，直接返回
     if (layoutParamsCache != null && layoutParamsCache!.containsKey(index)) {
       return layoutParamsCache![index]!;
     }
 
-    // 否则计算
     final params = getLayoutParamsForPosition(
       index: index,
       scrollOffset: scrollOffset,
@@ -127,14 +126,13 @@ abstract class LayoutAlgorithm {
       crossAxisExtent: crossAxisExtent,
       itemWidth: itemWidth,
       itemHeight: itemHeight,
-      itemExtent: itemExtent,
       itemCount: itemCount,
       padding: padding,
       reverse: reverse,
       textDirection: textDirection,
+      scrollDirection: scrollDirection,
     );
 
-    // 如果有缓存，存入缓存
     if (layoutParamsCache != null) {
       layoutParamsCache![index] = params;
     }
@@ -157,6 +155,19 @@ abstract class LayoutAlgorithm {
     required int itemCount,
     required double viewportExtent,
   });
+
+  /// 计算绘制范围（可选覆盖）
+  ///
+  /// 返回 null 表示使用默认的 calculatePaintOffset 计算。
+  /// 返回具体值时，RenderLayoutableSliverList 会直接使用该值作为 paintExtent。
+  ///
+  /// Stack 等重叠布局应覆盖此方法返回 mainAxisExtent，
+  /// 因为默认的 from/to 差值计算对重叠布局不适用。
+  double? calculatePaintExtent(
+    SliverConstraints constraints, {
+    required double from,
+    required double to,
+  }) => null;
 
   /// 根据 index 和滚动偏移量计算布局参数
   /// 
@@ -183,11 +194,11 @@ abstract class LayoutAlgorithm {
     required double crossAxisExtent,
     required double itemWidth,
     required double itemHeight,
-    required double itemExtent,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     bool reverse = false,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   });
 
   /// 获取给定 scrollOffset 下的最小可见 item 索引
@@ -196,21 +207,20 @@ abstract class LayoutAlgorithm {
   /// 这个方法用于优化性能，只渲染可见的 item。
   /// 
   /// [scrollOffset] - 当前滚动偏移量（像素）
-  /// [itemExtent] - item 在主轴方向的逻辑大小
   /// [itemCount] - item 总数
-  /// [mainAxisExtent] - 容器宽度
-  /// [crossAxisExtent] - 容器高度
+  /// [mainAxisExtent] - 容器主轴方向大小
+  /// [crossAxisExtent] - 容器交叉轴方向大小
   /// [itemWidth] - item 的原始宽度
   /// [itemHeight] - item 的原始高度
   /// [padding] - 容器的内边距
   /// [reverse] - 是否反转滚动方向
   /// [cacheExtent] - 缓存区域大小（视口外需要预渲染的距离）
   /// [textDirection] - 文本方向
+  /// [scrollDirection] - 滚动方向，内部用于计算 itemExtent
   /// 
   /// 返回值：最小可见 item 的索引（包含缓存区域）
   int getMinVisibleIndex({
     required double scrollOffset,
-    required double itemExtent,
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
@@ -220,6 +230,7 @@ abstract class LayoutAlgorithm {
     required bool reverse,
     required double cacheExtent,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   });
 
   /// 获取给定 scrollOffset 下的最大可见 item 索引
@@ -232,7 +243,6 @@ abstract class LayoutAlgorithm {
   /// 返回值：最大可见 item 的索引（包含缓存区域）
   int getMaxVisibleIndex({
     required double scrollOffset,
-    required double itemExtent,
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
@@ -242,10 +252,16 @@ abstract class LayoutAlgorithm {
     required bool reverse,
     required double cacheExtent,
     required TextDirection textDirection,
+    required Axis scrollDirection,
   });
 
-  /// 将 item index 转换为 layoutOffset
-  /// 
+  /// 计算绘制范围（可选覆盖）
+  ///
+  /// 返回 null 表示使用默认的 calculatePaintOffset 计算。
+  /// 返回具体值时，RenderLayoutableSliverList 会直接使用该值作为 paintExtent。
+  ///
+  /// Stack 等重叠布局应覆盖此方法返回 mainAxisExtent，
+  /// 因为默认的 from/to 差值计算对重叠布局不适用。
   /// 计算指定 item 在滚动轴上的起始位置（像素偏移量）。
   /// 这个方法用于滚动到指定 item 或计算滚动范围。
   /// 

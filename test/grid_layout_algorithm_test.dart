@@ -21,11 +21,11 @@ LayoutParams getParams(
     crossAxisExtent: crossAxisExtent,
     itemWidth: itemWidth,
     itemHeight: itemHeight,
-    itemExtent: algo.scrollDirection == Axis.vertical ? itemHeight : itemWidth,
     itemCount: itemCount,
     padding: EdgeInsets.zero,
     reverse: false,
     textDirection: TextDirection.ltr,
+    scrollDirection: algo.scrollDirection,
   );
 }
 
@@ -88,7 +88,6 @@ void main() {
     test('getMinVisibleIndex at scrollOffset 0', () {
       final min = algo.getMinVisibleIndex(
         scrollOffset: 0,
-        itemExtent: 100,
         itemCount: 9,
         mainAxisExtent: 300,
         crossAxisExtent: 300,
@@ -98,6 +97,7 @@ void main() {
         reverse: false,
         cacheExtent: 0,
         textDirection: TextDirection.ltr,
+        scrollDirection: Axis.vertical,
       );
       expect(min, 0);
     });
@@ -105,7 +105,6 @@ void main() {
     test('getMaxVisibleIndex shows all items in viewport', () {
       final max = algo.getMaxVisibleIndex(
         scrollOffset: 0,
-        itemExtent: 100,
         itemCount: 9,
         mainAxisExtent: 300,
         crossAxisExtent: 300,
@@ -115,6 +114,7 @@ void main() {
         reverse: false,
         cacheExtent: 0,
         textDirection: TextDirection.ltr,
+        scrollDirection: Axis.vertical,
       );
       expect(max, 8);
     });

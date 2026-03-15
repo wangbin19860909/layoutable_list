@@ -77,12 +77,14 @@ class ItemAnimatorController extends ChangeNotifier {
   /// [addIndexes] - 本次新增的插入位置（变更后的 index，升序）
   /// [removeIndexes] - 本次删除的位置（变更前的 index，升序）
   /// [padding] - 可选，变更后的 padding
+  /// [itemSize] - 可选，变更后的 item 尺寸（width x height），用于计算新布局参数
   /// [scrollOffset] - 可选，覆盖当前 scrollOffset
   void prepareLayoutAnimations({
     required ListAdapter adapter,
     List<int> addIndexes = const [],
     List<int> removeIndexes = const [],
     EdgeInsetsGeometry? padding,
+    Size? itemSize,
     double? scrollOffset,
   }) {
     final oldItemCount = adapter.itemCount;
@@ -133,6 +135,8 @@ class ItemAnimatorController extends ChangeNotifier {
         itemCount: newItemCount,
         scrollOffset: newScrollOffset,
         padding: padding,
+        itemWidth: itemSize?.width,
+        itemHeight: itemSize?.height,
       );
 
       // 旧绝对位置 = 旧布局位置 + 当前视觉偏移

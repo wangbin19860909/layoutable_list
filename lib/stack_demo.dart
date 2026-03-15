@@ -31,6 +31,8 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   // 左右 padding，三档循环：zero → left → right → zero
   int _paddingStep = 0;
   EdgeInsets _padding = EdgeInsets.zero;
+  // 当前 item 尺寸（随 paddingStep 变化）
+  Size? _itemSize; // null 表示使用默认尺寸
 
   @override
   void initState() {
@@ -85,19 +87,27 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     return colors[index % colors.length];
   }
 
-  void _togglePadding(double containerWidth) {
-    final half = containerWidth / 2;
+  void _togglePadding(double cardWidth, double cardHeight) {
+    final half = cardWidth / 2;
     _paddingStep = (_paddingStep + 1) % 3;
     final newPadding = switch (_paddingStep) {
-      1 => EdgeInsets.only(left: half),
-      2 => EdgeInsets.only(right: half),
+      1 => EdgeInsets.only(left: cardWidth / 2),
+      2 => EdgeInsets.only(right: cardWidth / 2),
       _ => EdgeInsets.zero,
     };
+    // step=0 恢复原始尺寸，其他步骤宽度减半
+    final newItemSize = _paddingStep == 0
+        ? Size(cardWidth, cardHeight)
+        : Size(half, cardHeight);
     _animatorController.prepareLayoutAnimations(
       adapter: _adapter,
       padding: newPadding,
+      itemSize: newItemSize,
     );
-    setState(() => _padding = newPadding);
+    setState(() {
+      _padding = newPadding;
+      _itemSize = _paddingStep == 0 ? null : newItemSize;
+    });
     _animatorController.commit();
   }
 
@@ -186,6 +196,9 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     final cardHeight = containerHeight * 0.8;
     // 卡片宽高比与容器一致
     final cardWidth = cardHeight * (containerWidth / containerHeight);
+    // 实际使用的 item 尺寸（_itemSize 非 null 时覆盖）
+    final itemWidth = _itemSize?.width ?? cardWidth;
+    final itemHeight = _itemSize?.height ?? cardHeight;
     
     return Scaffold(
       appBar: AppBar(
@@ -193,8 +206,8 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         backgroundColor: Colors.blue,
       ),
       body: LayoutableListWidget(
-        itemWidth: cardWidth,
-        itemHeight: cardHeight,
+        itemWidth: itemWidth,
+        itemHeight: itemHeight,
         scrollDirection: Axis.horizontal,
         reverse: false,
         layoutManagerHolder: _layoutManagerHolder,
@@ -261,7 +274,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         children: [
           FloatingActionButton(
             heroTag: 'padding',
-            onPressed: () => _togglePadding(containerWidth),
+            onPressed: () => _togglePadding(cardWidth, cardHeight),
             backgroundColor: Colors.indigo,
             child: Icon(switch (_paddingStep) {
               1 => Icons.align_horizontal_left,

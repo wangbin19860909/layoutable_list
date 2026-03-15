@@ -20,11 +20,11 @@ LayoutParams getParams(
     crossAxisExtent: crossAxisExtent,
     itemWidth: itemWidth,
     itemHeight: itemHeight,
-    itemExtent: itemWidth,
     itemCount: itemCount,
     padding: EdgeInsets.zero,
     reverse: false,
     textDirection: TextDirection.ltr,
+    scrollDirection: Axis.horizontal,
   );
 }
 
@@ -101,11 +101,12 @@ void main() {
     test('returns 0 for empty list', () {
       expect(
         algo.getMinVisibleIndex(
-          scrollOffset: 0, itemExtent: 300, itemCount: 0,
+          scrollOffset: 0, itemCount: 0,
           mainAxisExtent: 400, crossAxisExtent: 600,
           itemWidth: 300, itemHeight: 500,
           padding: EdgeInsets.zero, reverse: false,
           cacheExtent: 0, textDirection: TextDirection.ltr,
+          scrollDirection: Axis.horizontal,
         ),
         0,
       );
@@ -113,11 +114,12 @@ void main() {
 
     test('min index is >= 0', () {
       final min = algo.getMinVisibleIndex(
-        scrollOffset: 300, itemExtent: 300, itemCount: 5,
+        scrollOffset: 300, itemCount: 5,
         mainAxisExtent: 400, crossAxisExtent: 600,
         itemWidth: 300, itemHeight: 500,
         padding: EdgeInsets.zero, reverse: false,
         cacheExtent: 0, textDirection: TextDirection.ltr,
+        scrollDirection: Axis.horizontal,
       );
       expect(min, greaterThanOrEqualTo(0));
     });
@@ -127,11 +129,12 @@ void main() {
     test('returns 0 for empty list', () {
       expect(
         algo.getMaxVisibleIndex(
-          scrollOffset: 0, itemExtent: 300, itemCount: 0,
+          scrollOffset: 0, itemCount: 0,
           mainAxisExtent: 400, crossAxisExtent: 600,
           itemWidth: 300, itemHeight: 500,
           padding: EdgeInsets.zero, reverse: false,
           cacheExtent: 0, textDirection: TextDirection.ltr,
+          scrollDirection: Axis.horizontal,
         ),
         0,
       );
@@ -139,11 +142,12 @@ void main() {
 
     test('max index is <= itemCount - 1', () {
       final max = algo.getMaxVisibleIndex(
-        scrollOffset: 0, itemExtent: 300, itemCount: 5,
+        scrollOffset: 0, itemCount: 5,
         mainAxisExtent: 400, crossAxisExtent: 600,
         itemWidth: 300, itemHeight: 500,
         padding: EdgeInsets.zero, reverse: false,
         cacheExtent: 0, textDirection: TextDirection.ltr,
+        scrollDirection: Axis.horizontal,
       );
       expect(max, lessThanOrEqualTo(4));
     });

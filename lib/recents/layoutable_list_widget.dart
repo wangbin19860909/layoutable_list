@@ -4,7 +4,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_multi_window/service_holder.dart';
-import 'package:flutter_multi_window/utils/logger.dart';
 import 'base/custom_sliver_fixed_extent_base.dart';
 import 'algorithms/layout_algorithm.dart';
 
@@ -245,7 +244,6 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
 class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     implements LayoutManager {
   final ServiceHolder<LayoutManager> layoutManagerHolder;
-  static final _log = Logger('RenderLayoutableSliverList');
 
   final Map<int, LayoutParams> _layoutParamsCache = {};
 
@@ -377,11 +375,11 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       crossAxisExtent: containerHeight ?? constraints.crossAxisExtent,
       itemWidth: itemWidth ?? this.itemWidth,
       itemHeight: itemHeight ?? this.itemHeight,
-      itemExtent: itemExtent,
       itemCount: itemCount ?? childManager.childCount,
       padding: padding ?? this.padding,
       reverse: reverse ?? isReversed,
       textDirection: textDirection,
+      scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
     );
   }
 
@@ -446,6 +444,17 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       // 横向滚动：交叉轴是垂直方向，返回 top
       return params.rect.top;
     }
+  }
+
+  @override
+  double calculatePaintOffset(SliverConstraints constraints, {required double from, required double to}) {
+    final override = _layoutAlgorithm.calculatePaintExtent(
+      constraints,
+      from: from,
+      to: to,
+    );
+    if (override != null) return override.clamp(0.0, constraints.remainingPaintExtent);
+    return super.calculatePaintOffset(constraints, from: from, to: to);
   }
 
   @override
@@ -516,7 +525,6 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   int getMinChildIndexForScrollOffset(double scrollOffset, double itemExtent) {
     final minIndex = _layoutAlgorithm.getMinVisibleIndex(
       scrollOffset: constraints.scrollOffset + constraints.overlap,
-      itemExtent: itemExtent,
       itemCount: childManager.childCount,
       mainAxisExtent: constraints.viewportMainAxisExtent,
       crossAxisExtent: constraints.crossAxisExtent,
@@ -526,6 +534,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       reverse: isReversed,
       cacheExtent: cacheExtent,
       textDirection: textDirection,
+      scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
     );
     
     return minIndex;
@@ -535,7 +544,6 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   int getMaxChildIndexForScrollOffset(double scrollOffset, double itemExtent) {
     final maxIndex = _layoutAlgorithm.getMaxVisibleIndex(
       scrollOffset: constraints.scrollOffset + constraints.overlap,
-      itemExtent: itemExtent,
       itemCount: childManager.childCount,
       mainAxisExtent: constraints.viewportMainAxisExtent,
       crossAxisExtent: constraints.crossAxisExtent,
@@ -545,6 +553,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       reverse: isReversed,
       cacheExtent: cacheExtent,
       textDirection: textDirection,
+      scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
     );
     
     return maxIndex;
