@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../service_holder.dart';
+import '../../utils/logger.dart';
 import '../layoutable_list_widget.dart';
 import 'animation_widget.dart';
 import 'item_animator.dart';
@@ -9,27 +11,31 @@ import 'list_adapter.dart';
 /// 管理所有 item 的动画参数，提供自由的动画控制能力。
 /// 支持 add/remove/padding 等变更的补位动画，可在同一帧内合并。
 ///
-/// 使用流程（手动）：
-/// 1. snapshotLayout() — 记录当前每个 item 的屏幕绝对位置
+/// 使用流程：
+/// 1. prepareLayoutAnimations() / prepareItemAnimation() — 在数据变更前调用，计算补位动画参数
 /// 2. 执行数据变更（add/remove/改 padding 等）
-/// 3. commitLayout() — 根据快照和新布局计算偏移，触发动画
-///
-/// 或者直接使用 requestLayoutAnimations() 一步完成。
+/// 3. commit() — 触发 UI 刷新
 class ItemAnimatorController extends ChangeNotifier {
-  final LayoutManager layoutManager;
+  static final _log = Logger('ItemAnimatorController');
+  final ServiceHolder<LayoutManager> _layoutManagerHolder;
   final SpringConfig? springConfig;
   final CurveConfig? curveConfig;
 
+  LayoutManager get layoutManager {
+    final manager = _layoutManagerHolder.target;
+    if (manager == null) {
+      throw StateError('LayoutManager not attached yet');
+    }
+    return manager;
+  }
+
   final Map<String, ValueNotifier<ItemAnimatorParams>> _params = {};
 
-  /// 布局快照：itemId → 屏幕绝对位置
-  Map<String, Offset>? _layoutSnapshot;
-
   ItemAnimatorController({
-    required this.layoutManager,
+    required ServiceHolder<LayoutManager> layoutManagerHolder,
     this.springConfig,
     this.curveConfig,
-  });
+  }) : _layoutManagerHolder = layoutManagerHolder;
 
   /// 获取 item 当前的动画参数，不存在返回 null
   ItemAnimatorParams? getAnimatorParams(String itemId) {
@@ -45,82 +51,24 @@ class ItemAnimatorController extends ChangeNotifier {
   /// item 被卸载时重置，避免重新挂载时执行残留动画
   void onItemUnmounted(String itemId) {
     if (_params.containsKey(itemId)) {
+      _log.d('onItemUnmounted: $itemId');
       _params[itemId] = _createDefaultNotifier();
     }
   }
 
-  /// 记录当前所有 item 的屏幕绝对位置快照
-  ///
-  /// 在执行数据变更（add/remove/改 padding）之前调用。
-  /// 绝对位置 = 布局位置 + 当前视觉偏移
-  ///
-  /// [itemIds] - 当前 item id 列表（按 index 顺序）
-  /// [scrollOffset] - 可选，指定滚动偏移（默认用当前值）
-  void snapshotLayout({
-    required List<String> itemIds,
-    double? scrollOffset,
-  }) {
-    _layoutSnapshot = {};
-    for (int i = 0; i < itemIds.length; i++) {
-      final itemId = itemIds[i];
-      final layoutParams = layoutManager.getLayoutParamsForPosition(
-        index: i,
-        itemCount: itemIds.length,
-        scrollOffset: scrollOffset,
-      );
-      final currentOffset = _params[itemId]?.value.offset ?? Offset.zero;
-      _layoutSnapshot![itemId] = layoutParams.rect.topLeft + currentOffset;
-    }
+  /// 触发 UI 刷新
+  void commit() {
+    _log.d('commit');
+    notifyListeners();
   }
 
-  /// 根据快照和新布局计算补位偏移，触发动画
-  ///
-  /// 在数据变更完成后调用。
-  ///
-  /// [itemIds] - 变更后的 item id 列表（按 index 顺序）
-  /// [excludeIds] - 不参与补位动画的 item（如新添加的）
-  /// [scrollOffset] - 可选，指定滚动偏移（默认用当前值）
-  /// [padding] - 可选，变更后的 padding
-  void commitLayout({
-    required List<String> itemIds,
-    Set<String> excludeIds = const {},
-    double? scrollOffset,
-    EdgeInsetsGeometry? padding,
-  }) {
-    final snapshot = _layoutSnapshot;
-    _layoutSnapshot = null;
-
-    for (int i = 0; i < itemIds.length; i++) {
-      final itemId = itemIds[i];
-      if (excludeIds.contains(itemId)) continue;
-
-      final newLayoutParams = layoutManager.getLayoutParamsForPosition(
-        index: i,
-        itemCount: itemIds.length,
-        scrollOffset: scrollOffset,
-        padding: padding,
-      );
-
-      final oldAbsolutePos = snapshot?[itemId];
-      if (oldAbsolutePos == null) continue;
-
-      final offset = oldAbsolutePos - newLayoutParams.rect.topLeft;
-      if (offset.distance < 0.5) continue;
-
-      final notifier = listenAnimatorParams(itemId);
-      notifier.value = ItemAnimatorParams(
-        springConfig: springConfig,
-        curveConfig: curveConfig,
-        offset: offset,
-        toOffset: Offset.zero,
-        scale: 1.0,
-        alpha: 1.0,
-        size: newLayoutParams.rect.size,
-      );
-    }
+  /// 设置单个 item 的动画参数，立即生效，无需 commit()。
+  void performItemAnimation(String itemId, ItemAnimatorParams params) {
+    _log.d('performItemAnimation: $itemId offset=${params.offset}');
+    listenAnimatorParams(itemId).value = params;
   }
 
-  /// 根据 add/remove 变更计算并触发补位动画
+  /// 根据 add/remove 变更批量计算补位动画参数，需配合 commit() 触发 UI 刷新。
   ///
   /// 在数据变更之前调用，传入变更前的 adapter 状态。
   /// 内部自动推算每个 item 的旧/新 index，并处理 remove 时的 scrollOffset 预测。
@@ -130,14 +78,14 @@ class ItemAnimatorController extends ChangeNotifier {
   /// [removeIndexes] - 本次删除的位置（变更前的 index，升序）
   /// [padding] - 可选，变更后的 padding
   /// [scrollOffset] - 可选，覆盖当前 scrollOffset
-  void requestLayoutAnimations({
+  void prepareLayoutAnimations({
     required ListAdapter adapter,
     List<int> addIndexes = const [],
     List<int> removeIndexes = const [],
     EdgeInsetsGeometry? padding,
     double? scrollOffset,
   }) {
-    final oldItemCount = adapter.items.length;
+    final oldItemCount = adapter.itemCount;
     final newItemCount = oldItemCount - removeIndexes.length + addIndexes.length;
     final currentScrollOffset = scrollOffset ?? layoutManager.scrollOffset;
 
@@ -151,6 +99,7 @@ class ItemAnimatorController extends ChangeNotifier {
     // 构建 removeIndexes 的 Set，方便快速查找
     final removeIndexSet = removeIndexes.toSet();
 
+    int animatedCount = 0;
     for (final itemId in _params.keys) {
       final notifier = _params[itemId];
       if (notifier == null || !notifier.hasListeners) continue;
@@ -193,6 +142,7 @@ class ItemAnimatorController extends ChangeNotifier {
 
       if (offset.distance < 0.5) continue;
 
+      animatedCount++;
       notifier.value = ItemAnimatorParams(
         springConfig: springConfig,
         curveConfig: curveConfig,
@@ -203,6 +153,7 @@ class ItemAnimatorController extends ChangeNotifier {
         size: newLayoutParams.rect.size,
       );
     }
+    _log.d('prepareLayoutAnimations: add=$addIndexes remove=$removeIndexes animated=$animatedCount items');
   }
 
   /// 当 item 减少时，预测 ScrollView 会调整到的新 scrollOffset

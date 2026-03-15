@@ -5,8 +5,9 @@ import 'recents/layoutable_list_widget.dart';
 import 'recents/algorithms/grid_layout_algorithm.dart';
 import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
+import 'recents/animator/item_animator_controller.dart';
 import 'recents/physics/limited_overscroll_physics.dart';
-import 'recents/item_draggable.dart';
+import 'recents/drag/item_draggable.dart';
 
 /// 网格布局 Demo（横向一行）
 /// 使用 GridLayoutAlgorithm 和 ListAdapter 实现补位动画
@@ -20,13 +21,11 @@ class GridDemo extends StatefulWidget {
 class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
+  late ItemAnimatorController _animatorController;
   int _nextId = 0;
   
   // 追踪新添加的 item，用于执行添加动画
   final Set<String> _newItemIds = {};
-  
-  // 追踪正在拖拽的 item
-  String? _draggingItemId;
 
   @override
   void initState() {
@@ -43,8 +42,11 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
 
     _adapter = ListAdapter<CardItem>(
       items: initialItems,
-      layoutManagerHolder: _layoutManagerHolder,
       idExtractor: (item) => item.id,
+    );
+
+    _animatorController = ItemAnimatorController(
+      layoutManagerHolder: _layoutManagerHolder,
     );
     
     _adapter.addListener(_onAdapterChanged);
@@ -54,6 +56,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   void dispose() {
     _adapter.removeListener(_onAdapterChanged);
     _adapter.dispose();
+    _animatorController.dispose();
     super.dispose();
   }
 
@@ -84,12 +87,15 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
     );
     _nextId++;
     
-    // 标记为新添加的 item
     _newItemIds.add(newItem.id.toString());
     
+    _animatorController.prepareLayoutAnimations(
+      adapter: _adapter,
+      addIndexes: [0],
+    );
     _adapter.addItem(newItem, index: 0);
+    _animatorController.commit();
     
-    // 400ms 后移除标记（添加动画完成）
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() {
@@ -100,27 +106,24 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   }
 
   void _removeItem() {
-    if (_adapter.items.isNotEmpty) {
+    if (_adapter.itemCount > 0) {
+      _animatorController.prepareLayoutAnimations(
+        adapter: _adapter,
+        removeIndexes: [0],
+      );
       _adapter.removeAt(0);
+      _animatorController.commit();
     }
   }
 
   @override
-  void onDragStart(String itemId) {
-    setState(() {
-      _draggingItemId = itemId;
-    });
-  }
+  void onDragStart(String itemId) {}
 
   @override
   void onDragMove(String itemId, Offset offset) {}
 
   @override
   void onDragEnd(String itemId, DragResult result) {
-    setState(() {
-      _draggingItemId = null;
-    });
-    
     switch (result) {
       case SnapBack():
         // 回弹，不做任何操作
@@ -128,8 +131,15 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
         
       case Swipe(:final direction):
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
-          final item = _adapter.items.firstWhere((item) => item.id.toString() == itemId);
-          _adapter.removeItem(item);
+          final index = _adapter.findChildIndex(itemId);
+          if (index != null) {
+            _animatorController.prepareLayoutAnimations(
+              adapter: _adapter,
+              removeIndexes: [index],
+            );
+          }
+          _adapter.removeById(itemId);
+          _animatorController.commit();
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -146,7 +156,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('网格布局 - 横向一行 (${_adapter.items.length} 张卡片)'),
+        title: Text('网格布局 - 横向一行 (${_adapter.itemCount} 张卡片)'),
         backgroundColor: Colors.green,
       ),
       body: LayoutableListWidget(
@@ -190,7 +200,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                 child: ItemDraggable(
                   key: ValueKey('draggable_$itemId'),
                   itemId: itemId,
-                  paramsNotifier: _adapter.listenAnimatorParams(itemId),
+                  paramsNotifier: _animatorController.listenAnimatorParams(itemId),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -203,16 +213,16 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                   child: ItemAnimator(
                     key: ValueKey('animator_$itemId'),
                     itemId: itemId,
-                    paramsNotifier: _adapter.listenAnimatorParams(itemId),
+                    paramsNotifier: _animatorController.listenAnimatorParams(itemId),
                     layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
-                    onDispose: _adapter.onItemUnmounted,
+                    onDispose: _animatorController.onItemUnmounted,
                     child: _buildCard(item),
                   ),
                 ),
               ),
             );
           },
-          childCount: _adapter.items.length,
+          childCount: _adapter.itemCount,
           findChildIndexCallback: (Key key) {
             final valueKey = key as ValueKey<String>;
             return _adapter.findChildIndex(valueKey.value);
@@ -230,8 +240,8 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
           const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'remove',
-            onPressed: _adapter.items.isNotEmpty ? _removeItem : null,
-            backgroundColor: _adapter.items.isEmpty ? Colors.grey : Colors.red,
+            onPressed: _adapter.itemCount > 0 ? _removeItem : null,
+            backgroundColor: _adapter.itemCount == 0 ? Colors.grey : Colors.red,
             child: const Icon(Icons.remove),
           ),
         ],

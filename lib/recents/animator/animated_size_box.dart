@@ -1,8 +1,7 @@
-import 'dart:ui';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../layout_algorithm.dart';
+import '../algorithms/layout_algorithm.dart';
+import '../../utils/logger.dart';
 import 'item_animator.dart';
 
 /// 尺寸动画参数
@@ -149,6 +148,7 @@ class AnimatedSizeBox extends StatefulWidget {
 
 class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
     with SingleTickerProviderStateMixin {
+  static final _log = Logger('AnimatedSizeBox');
   late AnimationController _controller;
   late Animation<Size> _sizeAnimation;
   late Size _currentSize;
@@ -179,12 +179,14 @@ class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
     if (params.animate) {
       _isAnimating = true;
       _controller.duration = widget.duration;
+      _log.d('start size ${_currentSize.width.toStringAsFixed(1)}×${_currentSize.height.toStringAsFixed(1)} → ${targetSize.width.toStringAsFixed(1)}×${targetSize.height.toStringAsFixed(1)}');
       _controller.forward(from: 0.0);
     } else {
       // 不做动画，直接到位
       _isAnimating = false;
       _currentSize = targetSize;
       _controller.value = 1.0;
+      _log.dDebounced('size update (no anim) ${targetSize.width.toStringAsFixed(1)}×${targetSize.height.toStringAsFixed(1)}');
     }
   }
 
@@ -192,6 +194,7 @@ class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
     if (status == AnimationStatus.completed && _isAnimating) {
       _isAnimating = false;
       _currentSize = widget.sizeParamsNotifier.value.size;
+      _log.d('end size=${_currentSize.width.toStringAsFixed(1)}×${_currentSize.height.toStringAsFixed(1)}');
       widget.onEnd?.call();
     }
   }
@@ -200,6 +203,9 @@ class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
   void dispose() {
     widget.sizeParamsNotifier.removeListener(_onParamsChanged);
     _controller.dispose();
+    if (_isAnimating) {
+      widget.onEnd?.call();
+    }
     super.dispose();
   }
 

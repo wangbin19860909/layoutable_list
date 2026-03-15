@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_multi_window/service_holder.dart';
-import '../layout_algorithm.dart';
+import '../algorithms/layout_algorithm.dart';
 import '../layoutable_list_widget.dart';
 
 /// 自定义滚动物理效果，支持吸附到指定位置

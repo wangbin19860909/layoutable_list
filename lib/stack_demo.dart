@@ -5,9 +5,10 @@ import 'recents/layoutable_list_widget.dart';
 import 'recents/algorithms/stack_layout_algorithm.dart';
 import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
+import 'recents/animator/item_animator_controller.dart';
 import 'recents/animator/animation_widget.dart';
 import 'recents/physics/limited_overscroll_physics.dart';
-import 'recents/item_draggable.dart';
+import 'recents/drag/item_draggable.dart';
 
 /// 堆叠布局 Demo
 /// 使用 StackLayoutAlgorithm 和 ListAdapter 实现补位动画
@@ -21,13 +22,15 @@ class StackDemo extends StatefulWidget {
 class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
+  late ItemAnimatorController _animatorController;
   int _nextId = 0;
   
   // 追踪新添加的 item，用于执行添加动画
   final Set<String> _newItemIds = {};
-  
-  // 追踪正在拖拽的 item
-  String? _draggingItemId;
+
+  // 左右 padding，三档循环：zero → left → right → zero
+  int _paddingStep = 0;
+  EdgeInsets _padding = EdgeInsets.zero;
 
   @override
   void initState() {
@@ -44,11 +47,14 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
 
     _adapter = ListAdapter<CardItem>(
       items: initialItems,
-      layoutManagerHolder: _layoutManagerHolder,
       idExtractor: (item) => item.id,
+    );
+
+    _animatorController = ItemAnimatorController(
+      layoutManagerHolder: _layoutManagerHolder,
       springConfig: const SpringConfig(stiffness: 200.0, damping: 22.0),
     );
-    
+
     _adapter.addListener(_onAdapterChanged);
   }
 
@@ -56,6 +62,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   void dispose() {
     _adapter.removeListener(_onAdapterChanged);
     _adapter.dispose();
+    _animatorController.dispose();
     super.dispose();
   }
 
@@ -78,6 +85,22 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     return colors[index % colors.length];
   }
 
+  void _togglePadding(double containerWidth) {
+    final half = containerWidth / 2;
+    _paddingStep = (_paddingStep + 1) % 3;
+    final newPadding = switch (_paddingStep) {
+      1 => EdgeInsets.only(left: half),
+      2 => EdgeInsets.only(right: half),
+      _ => EdgeInsets.zero,
+    };
+    _animatorController.prepareLayoutAnimations(
+      adapter: _adapter,
+      padding: newPadding,
+    );
+    setState(() => _padding = newPadding);
+    _animatorController.commit();
+  }
+
   void _addItem() {
     final newItem = CardItem(
       id: _nextId,
@@ -86,12 +109,15 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     );
     _nextId++;
     
-    // 标记为新添加的 item
     _newItemIds.add(newItem.id.toString());
     
+    _animatorController.prepareLayoutAnimations(
+      adapter: _adapter,
+      addIndexes: [0],
+    );
     _adapter.addItem(newItem, index: 0);
+    _animatorController.commit();
     
-    // 400ms 后移除标记（添加动画完成）
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() {
@@ -102,29 +128,24 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   }
 
   void _removeItem() {
-    if (_adapter.items.isNotEmpty) {
+    if (_adapter.itemCount > 0) {
+      _animatorController.prepareLayoutAnimations(
+        adapter: _adapter,
+        removeIndexes: [0],
+      );
       _adapter.removeAt(0);
+      _animatorController.commit();
     }
   }
 
   @override
-  void onDragStart(String itemId) {
-    setState(() {
-      _draggingItemId = itemId;
-    });
-  }
+  void onDragStart(String itemId) {}
 
   @override
-  void onDragMove(String itemId, Offset offset) {
-    // 可以在这里实时更新 UI
-  }
+  void onDragMove(String itemId, Offset offset) {}
 
   @override
   void onDragEnd(String itemId, DragResult result) {
-    setState(() {
-      _draggingItemId = null;
-    });
-    
     switch (result) {
       case SnapBack():
         // 回弹，不做处理
@@ -133,8 +154,15 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
       case Swipe(:final direction):
         // 根据方向删除 item
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
-          final item = _adapter.items.firstWhere((item) => item.id.toString() == itemId);
-          _adapter.removeItem(item);
+          final index = _adapter.findChildIndex(itemId);
+          if (index != null) {
+            _animatorController.prepareLayoutAnimations(
+              adapter: _adapter,
+              removeIndexes: [index],
+            );
+          }
+          _adapter.removeById(itemId);
+          _animatorController.commit();
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -161,7 +189,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('堆叠布局 (${_adapter.items.length} 张卡片)'),
+        title: Text('堆叠布局 (${_adapter.itemCount} 张卡片)'),
         backgroundColor: Colors.blue,
       ),
       body: LayoutableListWidget(
@@ -173,6 +201,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         cacheExtent: 300,
         physics: const LimitedOverscrollPhysics(maxOverscrollExtent: 60.0),
         layoutAlgorithm: StackLayoutAlgorithm(),
+        padding: _padding,
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             final item = _adapter.getItem(index);
@@ -198,7 +227,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                 child: ItemDraggable(
                   key: ValueKey('draggable_$itemId'),
                   itemId: itemId,
-                  paramsNotifier: _adapter.listenAnimatorParams(itemId),
+                  paramsNotifier: _animatorController.listenAnimatorParams(itemId),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -211,16 +240,16 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                   child: ItemAnimator(
                     key: ValueKey('animator_$itemId'),
                     itemId: itemId,
-                    paramsNotifier: _adapter.listenAnimatorParams(itemId),
+                    paramsNotifier: _animatorController.listenAnimatorParams(itemId),
                     layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
-                    onDispose: _adapter.onItemUnmounted,
+                    onDispose: _animatorController.onItemUnmounted,
                     child: _buildCard(item),
                   ),
                 ),
               ),
             );
           },
-          childCount: _adapter.items.length,
+          childCount: _adapter.itemCount,
           findChildIndexCallback: (Key key) {
             final valueKey = key as ValueKey<String>;
             return _adapter.findChildIndex(valueKey.value);
@@ -231,6 +260,17 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           FloatingActionButton(
+            heroTag: 'padding',
+            onPressed: () => _togglePadding(containerWidth),
+            backgroundColor: Colors.indigo,
+            child: Icon(switch (_paddingStep) {
+              1 => Icons.align_horizontal_left,
+              2 => Icons.align_horizontal_right,
+              _ => Icons.expand,
+            }),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
             heroTag: 'add',
             onPressed: _addItem,
             child: const Icon(Icons.add),
@@ -238,8 +278,8 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
           const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'remove',
-            onPressed: _adapter.items.isNotEmpty ? _removeItem : null,
-            backgroundColor: _adapter.items.isEmpty ? Colors.grey : Colors.red,
+            onPressed: _adapter.itemCount > 0 ? _removeItem : null,
+            backgroundColor: _adapter.itemCount == 0 ? Colors.grey : Colors.red,
             child: const Icon(Icons.remove),
           ),
         ],

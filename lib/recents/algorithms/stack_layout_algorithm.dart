@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../layout_algorithm.dart';
+import 'layout_algorithm.dart';
 
 /// MIUI 堆叠布局算法实现
 /// 参考 MIUI TaskStackViewsAlgorithmStack 实现

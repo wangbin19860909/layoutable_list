@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'animation_widget.dart';
 import 'animated_size_box.dart';
-import '../layout_algorithm.dart';
+import '../algorithms/layout_algorithm.dart';
 
 /// Item 动画参数
 ///

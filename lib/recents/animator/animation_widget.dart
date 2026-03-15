@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:math' show sqrt;
 
 import 'package:flutter/physics.dart';
+import '../../utils/logger.dart';
 
 /// 弹簧物理配置
 class SpringConfig {
@@ -105,6 +106,7 @@ class AnimationWidget extends StatefulWidget {
 
 class _AnimationWidgetState extends State<AnimationWidget>
     with TickerProviderStateMixin {
+  static final _log = Logger('AnimationWidget');
   late AnimationController _controller;
   late Animation<Offset> _offsetAnimation;
   late Animation<double> _scaleAnimation;
@@ -117,6 +119,11 @@ class _AnimationWidgetState extends State<AnimationWidget>
       vsync: this,
       duration: Duration(milliseconds: widget.animParams.value.curveConfig.durationMs),
     );
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        _onAnimationEnd();
+      }
+    });
     widget.animParams.addListener(_onParamsChanged);
     _startAnimations();
   }
@@ -171,12 +178,14 @@ class _AnimationWidgetState extends State<AnimationWidget>
     if (params.offset == params.toOffset &&
         params.scale == params.toScale &&
         params.alpha == params.toAlpha) {
+      _log.dDebounced('skip (no change) offset=${params.offset} scale=${params.scale.toStringAsFixed(2)} alpha=${params.alpha.toStringAsFixed(2)}');
       _controller.value = 1.0;
       return;
     }
 
     if (isSpring) {
       final springConfig = params.springConfig!;
+      _log.d('start spring offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} stiffness=${springConfig.stiffness} damping=${springConfig.damping}');
       _controller.animateWith(
         SpringSimulation(
           SpringDescription(
@@ -190,8 +199,13 @@ class _AnimationWidgetState extends State<AnimationWidget>
         ),
       );
     } else {
+      _log.d('start curve offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} duration=${params.curveConfig.durationMs}ms');
       _controller.forward(from: _controller.value);
     }
+  }
+
+  void _onAnimationEnd() {
+    _log.d('end');
   }
 
   @override

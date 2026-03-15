@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../layout_algorithm.dart';
+import 'layout_algorithm.dart';
 
 /// 网格布局算法实现
 /// 支持横向和纵向滚动的网格布局，类似 GridView

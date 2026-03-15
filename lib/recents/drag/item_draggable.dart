@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'animator/item_animator.dart';
+import '../animator/item_animator.dart';
 import 'drag_gesture_detector.dart';
 
 /// Swipe 触发阈值配置

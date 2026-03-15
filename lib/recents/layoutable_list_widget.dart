@@ -4,8 +4,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_multi_window/service_holder.dart';
+import 'package:flutter_multi_window/utils/logger.dart';
 import 'base/custom_sliver_fixed_extent_base.dart';
-import 'layout_algorithm.dart';
+import 'algorithms/layout_algorithm.dart';
 
 /// 布局管理器接口
 ///
@@ -244,6 +245,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
 class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     implements LayoutManager {
   final ServiceHolder<LayoutManager> layoutManagerHolder;
+  static final _log = Logger('RenderLayoutableSliverList');
 
   final Map<int, LayoutParams> _layoutParamsCache = {};
 
@@ -478,7 +480,6 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   void performLayout() {
     // 清除缓存，因为 scrollOffset 可能已经改变
     _layoutParamsCache.clear();
-
     super.performLayout();
 
     // 延迟更新 notifier，避免在布局期间触发 setState
