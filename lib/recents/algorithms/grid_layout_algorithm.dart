@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'layout_algorithm.dart';
 
 /// 网格布局算法实现
@@ -33,6 +34,9 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   /// 滚动方向
   final Axis scrollDirection;
 
+  /// 两侧最多能多滚动的 item 数量（乘以 itemExtent 得到像素）
+  final double maxOverscrollCount;
+
   GridLayoutAlgorithm({
     this.spanCount = 3,
     this.crossAxisSpacing = 8.0,
@@ -40,6 +44,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     this.mainAxisPadding = 0.0,
     this.crossAxisPadding = 0.0,
     this.scrollDirection = Axis.vertical,
+    this.maxOverscrollCount = 1.0,
   });
 
   /// 获取列数（纵向滚动）或行数（横向滚动）
@@ -47,6 +52,13 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   
   /// 获取行数（横向滚动）或列数（纵向滚动）
   int get rowCount => scrollDirection == Axis.horizontal ? spanCount : 0;
+
+  @override
+  double? calculatePaintExtent(
+    SliverConstraints constraints, {
+    required double from,
+    required double to,
+  }) => constraints.viewportMainAxisExtent;
 
   @override
   double computeMaxScrollOffset({
@@ -83,12 +95,13 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     
     // 解析 padding 为具体的 EdgeInsets，使用实际的 textDirection
     final resolvedPadding = padding.resolve(textDirection);
+
+    final double clampedScrollOffset = _clampScrollOffset(scrollOffset, itemExtent, itemCount, mainAxisExtent);
     
     if (scrollDirection == Axis.vertical) {
-      // 纵向滚动：按行列布局
       return _getVerticalLayoutParams(
         index: index,
-        scrollOffset: scrollOffset,
+        scrollOffset: clampedScrollOffset,
         containerWidth: mainAxisExtent,
         containerHeight: crossAxisExtent,
         itemExtent: itemExtent,
@@ -96,10 +109,9 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         resolvedPadding: resolvedPadding,
       );
     } else {
-      // 横向滚动：按列行布局
       return _getHorizontalLayoutParams(
         index: index,
-        scrollOffset: scrollOffset,
+        scrollOffset: clampedScrollOffset,
         containerWidth: mainAxisExtent,
         containerHeight: crossAxisExtent,
         itemExtent: itemExtent,
@@ -196,10 +208,12 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         ? resolvedPadding.top 
         : resolvedPadding.left;
 
+    final double clampedScrollOffset = _clampScrollOffset(scrollOffset, itemExtent, itemCount, mainAxisExtent);
+
     final double totalMainAxisPadding = mainAxisPaddingFromEdgeInsets + mainAxisPadding;
     final int firstVisibleMainAxis = math.max(
       0,
-      ((scrollOffset - totalMainAxisPadding - cacheExtent) / (itemExtent + mainAxisSpacing)).floor(),
+      ((clampedScrollOffset - totalMainAxisPadding - cacheExtent) / (itemExtent + mainAxisSpacing)).floor(),
     );
 
     return firstVisibleMainAxis * spanCount;
@@ -226,14 +240,27 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         ? resolvedPadding.top 
         : resolvedPadding.left;
 
-    final double viewportEnd = scrollOffset + mainAxisExtent + cacheExtent;
+    final double clampedScrollOffset = _clampScrollOffset(scrollOffset, itemExtent, itemCount, mainAxisExtent);
+
+    final double viewportEnd = clampedScrollOffset + mainAxisExtent + cacheExtent;
     final double totalMainAxisPadding = mainAxisPaddingFromEdgeInsets + mainAxisPadding;
     final int lastVisibleMainAxis = ((viewportEnd - totalMainAxisPadding) / (itemExtent + mainAxisSpacing)).floor();
 
     return math.min(
-      (lastVisibleMainAxis + 1) * spanCount - 1,
+      math.max((lastVisibleMainAxis + 1) * spanCount - 1, 0),
       itemCount - 1,
     );
+  }
+
+  /// 对 scrollOffset 施加软边界阻尼，内部自动计算 maxScroll
+  double _clampScrollOffset(double scrollOffset, double itemExtent, int itemCount, double mainAxisExtent) {
+    final double maxScroll = computeMaxScrollOffset(
+      itemExtent: itemExtent, itemCount: itemCount, viewportExtent: mainAxisExtent,
+    );
+    final double margin = maxOverscrollCount * itemExtent;
+    // 内容铺不满时（maxScroll <= mainAxisExtent），实际不可滚动，有效 max 为 0
+    final double effectiveMax = maxScroll > mainAxisExtent ? maxScroll - mainAxisExtent : 0.0;
+    return softClamp(scrollOffset, -margin, effectiveMax + margin, itemExtent);
   }
 
   @override

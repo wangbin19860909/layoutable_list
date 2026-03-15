@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -279,4 +280,22 @@ abstract class LayoutAlgorithm {
     required double viewportExtent,
     required bool reverseLayout,
   });
+
+  /// 软边界 clamp：输出永远在 [min, max] 内，但在接近边界的 [margin] 区间内
+  /// 用指数曲线压缩，越接近边界阻力越大，不会硬截断
+  @protected
+  double softClamp(double value, double min, double max, double margin) {
+    assert(max - min > margin * 2, 'range must be larger than 2 * margin');
+    if (value < min + margin) {
+      // 在 min 侧阻尼区：将 (-∞, min+margin) 映射到 [min, min+margin)
+      final double t = (min + margin - value) / margin; // t ∈ (0, +∞)
+      return min + margin * math.exp(-t);
+    } else if (value > max - margin) {
+      // 在 max 侧阻尼区：将 (max-margin, +∞) 映射到 (max-margin, max]
+      final double t = (value - (max - margin)) / margin; // t ∈ (0, +∞)
+      return max - margin * math.exp(-t);
+    }
+    return value;
+  }
+
 }

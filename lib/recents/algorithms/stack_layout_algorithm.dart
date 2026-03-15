@@ -7,6 +7,10 @@ import 'layout_algorithm.dart';
 /// 参考 MIUI TaskStackViewsAlgorithmStack 实现
 /// 传入 index 和滚动信息，返回该 item 的布局参数
 class StackLayoutAlgorithm extends LayoutAlgorithm {
+  /// 两侧最多能多滚动的卡片数量（乘以 itemExtent 得到像素）
+  final double maxOverscrollCount;
+
+  StackLayoutAlgorithm({this.maxOverscrollCount = 1.0});
   @override
   double? calculatePaintExtent(
     SliverConstraints constraints, {
@@ -72,8 +76,14 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     // 堆叠只支持横向滚动，所以下面的计算都是基于这个前提
     final visibleWidth = mainAxisExtent - resolvedPadding.horizontal;
     
+    // 对 scrollOffset 施加软边界阻尼，防止 overscroll 时 depth 指数爆炸
+    // 超出边界的部分用指数衰减渐近边界，而不是硬截断
+    final double minBound = -maxOverscrollCount * itemExtent;
+    final double maxBound = (itemCount - 1 + maxOverscrollCount) * itemExtent;
+    final double clampedScrollOffset = softClamp(scrollOffset, minBound, maxBound, itemExtent / 2);
+
     // Stack 算法需要知道"第几张卡片"，所以内部转换
-    final curIndex = _scrollOffsetToPosition(scrollOffset, itemExtent);
+    final curIndex = _scrollOffsetToPosition(clampedScrollOffset, itemExtent);
 
     final cardScale = 0.7;
     final depthPadding = 0.125;
@@ -131,7 +141,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     );
 
 
-    final params =  LayoutParams(
+    return LayoutParams(
       rect: rect,
       scale: scale,
       alpha: alpha,
@@ -140,7 +150,6 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
       headerAlpha: headerAlpha,
       shadowAlpha: shadowAlpha,
     );
-    return params;
   }
 
   @override
@@ -187,7 +196,8 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
       startIndex--;
     }
 
-    return math.max(startIndex, 0);
+    final int minIdx = math.max(startIndex, 0);
+    return minIdx;
   }
 
   @override
@@ -208,7 +218,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
     final scrollPosition = _scrollOffsetToPosition(scrollOffset, itemExtent);
     
-    int endIndex = math.min(scrollPosition.floor() + 4, itemCount - 1);
+    int endIndex = math.max(scrollPosition.floor() + 4, itemCount - 1);
 
     while (endIndex < itemCount) {
       var params = getLayoutParamsWithCache(
@@ -228,8 +238,8 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
       endIndex++;
     }
 
-    return math.min(endIndex, itemCount - 1);
-  }
+    final int maxIdx = math.min(endIndex, itemCount - 1);
+    return maxIdx;  }
 
   // ========== 私有计算方法 ==========
 

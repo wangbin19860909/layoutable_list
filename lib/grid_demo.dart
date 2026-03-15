@@ -6,7 +6,6 @@ import 'recents/algorithms/grid_layout_algorithm.dart';
 import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
 import 'recents/animator/item_animator_controller.dart';
-import 'recents/physics/limited_overscroll_physics.dart';
 import 'recents/drag/item_draggable.dart';
 
 /// 网格布局 Demo（横向一行）
@@ -166,7 +165,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
         reverseLayout: false,
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 200,
-        physics: const LimitedOverscrollPhysics(maxOverscrollExtent: 60.0),
+        physics: const BouncingScrollPhysics(),
         layoutAlgorithm: GridLayoutAlgorithm(
           scrollDirection: Axis.horizontal,
           spanCount: 1, // 一行

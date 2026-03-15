@@ -7,7 +7,7 @@ import 'recents/animator/list_adapter.dart';
 import 'recents/animator/item_animator.dart';
 import 'recents/animator/item_animator_controller.dart';
 import 'recents/animator/animation_widget.dart';
-import 'recents/physics/limited_overscroll_physics.dart';
+import 'recents/physics/stack_scroll_physics.dart';
 import 'recents/drag/item_draggable.dart';
 
 /// 堆叠布局 Demo
@@ -213,7 +213,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         reversePaint: true,
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 300,
-        physics: const LimitedOverscrollPhysics(maxOverscrollExtent: 60.0),
+        physics: StackSnapScrollPhysics(layoutManager: _layoutManagerHolder),
         layoutAlgorithm: StackLayoutAlgorithm(),
         padding: _padding,
         delegate: SliverChildBuilderDelegate(

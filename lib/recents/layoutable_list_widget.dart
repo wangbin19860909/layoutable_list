@@ -472,7 +472,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       from: from,
       to: to,
     );
-    if (override != null) return override.clamp(0.0, constraints.remainingPaintExtent);
+    if (override != null) return override.clamp(0.0, constraints.viewportMainAxisExtent);
     return super.calculatePaintOffset(constraints, from: from, to: to);
   }
 
