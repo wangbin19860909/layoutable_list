@@ -32,7 +32,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double itemExtent,
     required double scrollOffset,
     required double viewportExtent,
-    required bool reverse,
+    required bool reverseLayout,
   }) {
     // 从缓存中获取该 index 的 LayoutParams
     final params = layoutParamsCache?[index];
@@ -42,7 +42,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     }
     
     // 根据方向决定使用 rect.left 还是 rect.right
-    if (reverse) {
+    if (reverseLayout) {
       // reverse: true，从右往左
       // layoutOffset = (viewportExtent - rect.right) + scrollOffset
       return (viewportExtent - params.rect.right) + scrollOffset;
@@ -63,7 +63,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double itemHeight,
     required int itemCount,
     required EdgeInsetsGeometry padding,
-    bool reverse = false,
+    bool reverseLayout = false,
     required TextDirection textDirection,
     required Axis scrollDirection,
   }) {
@@ -117,7 +117,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     // reverse=true: 原始 MIUI 算法（从右往左），使用 +offsetX
     // reverse=false: 反转方向（从左往右），使用 -offsetX
     final absoluteX =
-        reverse
+        reverseLayout
             ? centeredLeft + offsetX // 从右往左
             : centeredLeft - offsetX; // 从左往右
 
@@ -152,7 +152,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double itemWidth,
     required double itemHeight,
     required EdgeInsetsGeometry padding,
-    required bool reverse,
+    required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
@@ -173,12 +173,12 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         itemHeight: itemHeight,
         itemCount: itemCount,
         padding: padding,
-        reverse: reverse,
+        reverse: reverseLayout,
         textDirection: textDirection,
         scrollDirection: scrollDirection,
       );
 
-      if (reverse) {
+      if (reverseLayout) {
         if (params.rect.left > mainAxisExtent + cacheExtent) break;
       } else {
         if (params.rect.right < -cacheExtent) break;
@@ -199,7 +199,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double itemWidth,
     required double itemHeight,
     required EdgeInsetsGeometry padding,
-    required bool reverse,
+    required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
@@ -220,7 +220,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         itemHeight: itemHeight,
         itemCount: itemCount,
         padding: padding,
-        reverse: reverse,
+        reverse: reverseLayout,
         textDirection: textDirection,
         scrollDirection: scrollDirection,
       );

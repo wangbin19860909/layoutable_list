@@ -74,7 +74,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double itemHeight,
     required int itemCount,
     required EdgeInsetsGeometry padding,
-    bool reverse = false,
+    bool reverseLayout = false,
     required TextDirection textDirection,
     required Axis scrollDirection,
   }) {
@@ -184,7 +184,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double itemWidth,
     required double itemHeight,
     required EdgeInsetsGeometry padding,
-    required bool reverse,
+    required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
@@ -214,7 +214,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double itemWidth,
     required double itemHeight,
     required EdgeInsetsGeometry padding,
-    required bool reverse,
+    required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
@@ -242,7 +242,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double itemExtent,
     required double scrollOffset,
     required double viewportExtent,
-    required bool reverse,
+    required bool reverseLayout,
   }) {
     final int mainAxisIndex = index ~/ spanCount;
     return mainAxisPadding + mainAxisIndex * (itemExtent + mainAxisSpacing);

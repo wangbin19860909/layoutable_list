@@ -30,7 +30,6 @@ abstract class LayoutManager {
   /// [itemHeight] - item 高度（可选，默认使用当前配置的高度）
   /// [itemCount] - item 总数（可选，默认使用当前 item 数量）
   /// [padding] - 内边距（可选，默认使用当前配置的 padding）
-  /// [reverse] - 是否反转（可选，默认使用当前滚动方向）
   ///
   /// 返回值：该 item 的布局参数
   LayoutParams getLayoutParamsForPosition({
@@ -41,8 +40,7 @@ abstract class LayoutManager {
     double? itemWidth,
     double? itemHeight,
     int? itemCount,
-    EdgeInsetsGeometry? padding,
-    bool? reverse,
+    EdgeInsetsGeometry? padding
   });
 
   /// 监听指定 item 的布局参数变化
@@ -116,7 +114,7 @@ class LayoutableListWidget extends StatelessWidget {
   final Axis scrollDirection;
 
   /// 是否反转滚动方向
-  final bool reverse;
+  final bool reverseLayout;
 
   /// 子元素构建器
   final SliverChildDelegate delegate;
@@ -138,6 +136,10 @@ class LayoutableListWidget extends StatelessWidget {
   /// 缓存区域大小（可选，默认为 250.0）
   final double cacheExtent;
 
+  /// 是否反转绘制顺序（true: index 大的先绘制在下层；false: index 小的先绘制在下层）
+  /// Stack 布局通常需要 true，让后面的卡片先绘制（在下层）
+  final bool reversePaint;
+
   const LayoutableListWidget({
     super.key,
     required this.itemWidth,
@@ -148,9 +150,10 @@ class LayoutableListWidget extends StatelessWidget {
     required this.scrollDirection,
     this.physics,
     this.scrollController,
-    this.reverse = false,
+    this.reverseLayout = false,
     this.padding = EdgeInsets.zero,
     this.cacheExtent = 250.0,
+    this.reversePaint = false,
   });
 
   @override
@@ -159,7 +162,7 @@ class LayoutableListWidget extends StatelessWidget {
       scrollDirection: scrollDirection,
       controller: scrollController,
       physics: physics,
-      reverse: reverse,
+      reverse: reverseLayout,
       cacheExtent: cacheExtent,
       slivers: [
         LayoutableSliverList(
@@ -170,6 +173,7 @@ class LayoutableListWidget extends StatelessWidget {
           layoutManagerHolder: layoutManagerHolder,
           layoutAlgorithm: layoutAlgorithm,
           cacheExtent: cacheExtent,
+          reversePaint: reversePaint,
         ),
       ],
     );
@@ -195,6 +199,9 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
   /// 缓存区域大小（默认 250.0）
   final double cacheExtent;
 
+  /// 是否反转绘制顺序
+  final bool reversePaint;
+
   const LayoutableSliverList({
     super.key,
     required super.delegate,
@@ -204,6 +211,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
     required this.layoutManagerHolder,
     required this.layoutAlgorithm,
     this.cacheExtent = 250.0,
+    this.reversePaint = true,
   });
 
   @override
@@ -218,6 +226,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
       layoutAlgorithm: layoutAlgorithm,
       textDirection: Directionality.of(context),
       cacheExtent: cacheExtent,
+      reversePaint: reversePaint,
     );
   }
 
@@ -232,7 +241,8 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
       ..padding = padding
       ..layoutAlgorithm = layoutAlgorithm
       ..textDirection = Directionality.of(context)
-      ..cacheExtent = cacheExtent;
+      ..cacheExtent = cacheExtent
+      ..reversePaint = reversePaint;
   }
 
   @override
@@ -277,6 +287,14 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     markNeedsLayout();
   }
 
+  bool _reversePaint;
+  bool get reversePaint => _reversePaint;
+  set reversePaint(bool value) {
+    if (_reversePaint == value) return;
+    _reversePaint = value;
+    markNeedsPaint();
+  }
+
   RenderLayoutableSliverList({
     required super.childManager,
     required this.layoutManagerHolder,
@@ -286,12 +304,14 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     required EdgeInsetsGeometry padding,
     required TextDirection textDirection,
     required double cacheExtent,
+    bool reversePaint = true,
   }) : _layoutAlgorithm = layoutAlgorithm,
        _itemWidth = itemWidth,
        _itemHeight = itemHeight,
        _padding = padding,
        _textDirection = textDirection,
-       _cacheExtent = cacheExtent {
+       _cacheExtent = cacheExtent,
+       _reversePaint = reversePaint {
     layoutManagerHolder.attach(this);
     // 将缓存传递给算法
     _layoutAlgorithm.setLayoutParamsCache(_layoutParamsCache);
@@ -366,7 +386,6 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     double? itemHeight,
     int? itemCount,
     EdgeInsetsGeometry? padding,
-    bool? reverse,
   }) {
     return _layoutAlgorithm.getLayoutParamsForPosition(
       index: index,
@@ -377,7 +396,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemHeight: itemHeight ?? this.itemHeight,
       itemCount: itemCount ?? childManager.childCount,
       padding: padding ?? this.padding,
-      reverse: reverse ?? isReversed,
+      reverseLayout: isReversed,
       textDirection: textDirection,
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
     );
@@ -531,7 +550,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemWidth: itemWidth,
       itemHeight: itemHeight,
       padding: padding,
-      reverse: isReversed,
+      reverseLayout: isReversed,
       cacheExtent: cacheExtent,
       textDirection: textDirection,
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
@@ -550,7 +569,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemWidth: itemWidth,
       itemHeight: itemHeight,
       padding: padding,
-      reverse: isReversed,
+      reverseLayout: isReversed,
       cacheExtent: cacheExtent,
       textDirection: textDirection,
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
@@ -566,7 +585,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemExtent: itemExtent,
       scrollOffset: constraints.scrollOffset + constraints.overlap,
       viewportExtent: constraints.viewportMainAxisExtent,
-      reverse: isReversed,
+      reverseLayout: isReversed,
     );
   }
 
@@ -588,7 +607,10 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     required double mainAxisPosition,
     required double crossAxisPosition,
   }) {
-    RenderBox? child = firstChild;
+    // hitTest 顺序与 paint 相反：paint 先画的在下层，后画的在上层响应事件优先
+    // reversePaint=true 时 paint 从 lastChild→firstChild，hitTest 从 firstChild→lastChild
+    // reversePaint=false 时 paint 从 firstChild→lastChild，hitTest 从 lastChild→firstChild
+    RenderBox? child = _reversePaint ? firstChild : lastChild;
     final BoxHitTestResult boxResult = BoxHitTestResult.wrap(result);
     while (child != null) {
       if (hitTestBoxChild(
@@ -599,36 +621,25 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       )) {
         return true;
       }
-      child = childAfter(child);
+      child = _reversePaint ? childAfter(child) : childBefore(child);
     }
     return false;
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (firstChild == null) {
-      return;
-    }
+    if (firstChild == null) return;
 
-    RenderBox? child = lastChild;
-    // 按照正确的 z-order 绘制（后面的先绘制）
+    // reversePaint=true: 从 lastChild 开始（index 大的先画，在下层）
+    // reversePaint=false: 从 firstChild 开始（index 小的先画，在下层）
+    RenderBox? child = _reversePaint ? lastChild : firstChild;
     while (child != null) {
       final childParentData =
           child.parentData as SliverMultiBoxAdaptorParentData;
       final index = childParentData.index!;
-
-      // 使用缓存的布局参数
       final params = _getLayoutForPosition(index);
-      final rect = params.rect;
-
-      // 计算子元素的绘制位置
-      // paintChild 的 offset 是相对于当前 Sliver 的位置
-      final childOffset = Offset(rect.left, rect.top);
-
-      // 直接在正确的位置绘制子元素
-      context.paintChild(child, childOffset);
-
-      child = childBefore(child);
+      context.paintChild(child, Offset(params.rect.left, params.rect.top));
+      child = _reversePaint ? childBefore(child) : childAfter(child);
     }
   }
 }

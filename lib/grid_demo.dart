@@ -163,7 +163,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
         itemWidth: 200,
         itemHeight: 250,
         scrollDirection: Axis.horizontal,
-        reverse: false,
+        reverseLayout: false,
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 200,
         physics: const LimitedOverscrollPhysics(maxOverscrollExtent: 60.0),

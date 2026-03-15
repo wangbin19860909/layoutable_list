@@ -128,7 +128,7 @@ abstract class LayoutAlgorithm {
       itemHeight: itemHeight,
       itemCount: itemCount,
       padding: padding,
-      reverse: reverse,
+      reverseLayout: reverse,
       textDirection: textDirection,
       scrollDirection: scrollDirection,
     );
@@ -183,7 +183,7 @@ abstract class LayoutAlgorithm {
   /// [itemExtent] - item 在主轴方向的逻辑大小（用于计算滚动进度）
   /// [itemCount] - item 总数
   /// [padding] - 容器的内边距（EdgeInsetsGeometry，需要用 textDirection 解析）
-  /// [reverse] - 是否反转滚动方向（true: 从右往左/从下往上，false: 从左往右/从上往下）
+  /// [reverseLayout] - 是否反转滚动方向（true: 从右往左/从下往上，false: 从左往右/从上往下）
   /// [textDirection] - 文本方向（用于解析 padding，支持 RTL 布局）
   /// 
   /// 返回值：该 item 的布局参数
@@ -196,7 +196,7 @@ abstract class LayoutAlgorithm {
     required double itemHeight,
     required int itemCount,
     required EdgeInsetsGeometry padding,
-    bool reverse = false,
+    bool reverseLayout = false,
     required TextDirection textDirection,
     required Axis scrollDirection,
   });
@@ -213,7 +213,7 @@ abstract class LayoutAlgorithm {
   /// [itemWidth] - item 的原始宽度
   /// [itemHeight] - item 的原始高度
   /// [padding] - 容器的内边距
-  /// [reverse] - 是否反转滚动方向
+  /// [reverseLayout] - 是否反转滚动方向
   /// [cacheExtent] - 缓存区域大小（视口外需要预渲染的距离）
   /// [textDirection] - 文本方向
   /// [scrollDirection] - 滚动方向，内部用于计算 itemExtent
@@ -227,7 +227,7 @@ abstract class LayoutAlgorithm {
     required double itemWidth,
     required double itemHeight,
     required EdgeInsetsGeometry padding,
-    required bool reverse,
+    required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
@@ -249,7 +249,7 @@ abstract class LayoutAlgorithm {
     required double itemWidth,
     required double itemHeight,
     required EdgeInsetsGeometry padding,
-    required bool reverse,
+    required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
@@ -269,7 +269,7 @@ abstract class LayoutAlgorithm {
   /// [itemExtent] - item 在主轴方向的逻辑大小
   /// [scrollOffset] - 当前滚动偏移量
   /// [viewportExtent] - 视口大小
-  /// [reverse] - 是否反转方向
+  /// [reverseLayout] - 是否反转方向
   /// 
   /// 返回值：该 item 的起始位置（像素偏移量）
   double indexToLayoutOffset({
@@ -277,6 +277,6 @@ abstract class LayoutAlgorithm {
     required double itemExtent,
     required double scrollOffset,
     required double viewportExtent,
-    required bool reverse,
+    required bool reverseLayout,
   });
 }
