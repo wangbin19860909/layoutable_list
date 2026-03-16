@@ -285,7 +285,7 @@ abstract class LayoutAlgorithm {
   /// 用指数曲线压缩，越接近边界阻力越大，不会硬截断
   @protected
   double softClamp(double value, double min, double max, double margin) {
-    assert(max - min > margin * 2, 'range must be larger than 2 * margin');
+    if (max - min <= margin * 2) return value;
     if (value < min + margin) {
       // 在 min 侧阻尼区：将 (-∞, min+margin) 映射到 [min, min+margin)
       final double t = (min + margin - value) / margin; // t ∈ (0, +∞)
@@ -297,5 +297,4 @@ abstract class LayoutAlgorithm {
     }
     return value;
   }
-
 }

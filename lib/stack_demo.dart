@@ -99,7 +99,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     final newItemSize = _paddingStep == 0
         ? Size(cardWidth, cardHeight)
         : Size(half, cardHeight);
-    _animatorController.prepareLayoutAnimations(
+    _animatorController.performLayoutAnimations(
       adapter: _adapter,
       padding: newPadding,
       itemSize: newItemSize,
@@ -108,7 +108,6 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
       _padding = newPadding;
       _itemSize = _paddingStep == 0 ? null : newItemSize;
     });
-    _animatorController.commit();
   }
 
   void _addItem() {
@@ -121,12 +120,11 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
     
     _newItemIds.add(newItem.id.toString());
     
-    _animatorController.prepareLayoutAnimations(
+    _animatorController.performLayoutAnimations(
       adapter: _adapter,
       addIndexes: [0],
     );
     _adapter.addItem(newItem, index: 0);
-    _animatorController.commit();
     
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
@@ -139,12 +137,11 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
 
   void _removeItem() {
     if (_adapter.itemCount > 0) {
-      _animatorController.prepareLayoutAnimations(
+      _animatorController.performLayoutAnimations(
         adapter: _adapter,
         removeIndexes: [0],
       );
       _adapter.removeAt(0);
-      _animatorController.commit();
     }
   }
 
@@ -166,13 +163,12 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
           final index = _adapter.findChildIndex(itemId);
           if (index != null) {
-            _animatorController.prepareLayoutAnimations(
+            _animatorController.performLayoutAnimations(
               adapter: _adapter,
               removeIndexes: [index],
             );
           }
           _adapter.removeById(itemId);
-          _animatorController.commit();
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -241,7 +237,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                 child: ItemDraggable(
                   key: ValueKey('draggable_$itemId'),
                   itemId: itemId,
-                  paramsNotifier: _animatorController.listenAnimatorParams(itemId),
+                  paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
                   scrollDirection: Axis.horizontal,
                   listener: this,
                   swipeThreshold: const SwipeThreshold(
@@ -254,7 +250,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
                   child: ItemAnimator(
                     key: ValueKey('animator_$itemId'),
                     itemId: itemId,
-                    paramsNotifier: _animatorController.listenAnimatorParams(itemId),
+                    paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
                     layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
                     onDispose: _animatorController.onItemUnmounted,
                     child: _buildCard(item),

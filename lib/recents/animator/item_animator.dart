@@ -13,6 +13,7 @@ import '../algorithms/layout_algorithm.dart';
 /// 2. 新增 item：offset = toOffset = Offset.zero（不执行动画）
 /// 3. 尺寸动画：size 不为 zero 时执行尺寸动画
 class ItemAnimatorParams extends AnimationParams {
+  int index;
   /// 目标尺寸
   ///
   /// - Size.zero 表示使用 LayoutParams 的尺寸，不执行尺寸动画
@@ -20,6 +21,7 @@ class ItemAnimatorParams extends AnimationParams {
   final Size size;
 
   ItemAnimatorParams({
+    required this.index,
     super.springConfig,
     super.curveConfig,
     required super.offset,
@@ -28,23 +30,27 @@ class ItemAnimatorParams extends AnimationParams {
     super.toScale = 1.0,
     required super.alpha,
     super.toAlpha = 1.0,
+    super.onComplete,
     this.size = Size.zero,
   });
 
-  /// 复制并替换任意参数
+  /// 复制并替换任意参数，onComplete 不拷贝，完全由参数决定
   @override
   ItemAnimatorParams copy({
     SpringConfig? springConfig,
     CurveConfig? curveConfig,
+    int? index,
     Offset? offset,
     Offset? toOffset,
     double? scale,
     double? toScale,
     double? alpha,
     double? toAlpha,
+    VoidCallback? onComplete,
     Size? size,
   }) {
     return ItemAnimatorParams(
+      index: index ?? this.index,
       springConfig: springConfig ?? this.springConfig,
       curveConfig: curveConfig ?? this.curveConfig,
       offset: offset ?? this.offset,
@@ -53,6 +59,7 @@ class ItemAnimatorParams extends AnimationParams {
       toScale: toScale ?? this.toScale,
       alpha: alpha ?? this.alpha,
       toAlpha: toAlpha ?? this.toAlpha,
+      onComplete: onComplete,
       size: size ?? this.size,
     );
   }

@@ -26,7 +26,7 @@ class ListAdapter<T> extends ChangeNotifier {
 
   int get itemCount => _items.length;
 
-  int? findChildIndex(String itemId) => _idToIndexMap[itemId];
+  int findChildIndex(String itemId) => _idToIndexMap[itemId] ?? -1;
 
   String getItemId(int index) {
     if (index < 0 || index >= _items.length) {

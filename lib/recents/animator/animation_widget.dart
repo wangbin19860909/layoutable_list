@@ -53,6 +53,14 @@ class AnimationParams {
   double alpha;
   final double toAlpha;
 
+  /// 动画执行完成回调，copy 时不拷贝，调用一次后自动清空
+  VoidCallback? _onComplete;
+
+  void callOnComplete() {
+    _onComplete?.call();
+    _onComplete = null;
+  }
+
   AnimationParams({
     this.springConfig,
     CurveConfig? curveConfig,
@@ -62,11 +70,14 @@ class AnimationParams {
     required this.toScale,
     required this.alpha,
     required this.toAlpha,
-  })  : curveConfig = springConfig != null
+    VoidCallback? onComplete,
+  })  : _onComplete = onComplete,
+        curveConfig = springConfig != null
             ? const CurveConfig(curve: Curves.linear)
             : (curveConfig ?? const CurveConfig());
 
   /// 复制并替换任意参数，current 值默认从当前值中取
+  /// onComplete 不拷贝，完全由参数决定
   AnimationParams copy({
     SpringConfig? springConfig,
     CurveConfig? curveConfig,
@@ -76,6 +87,7 @@ class AnimationParams {
     double? toScale,
     double? alpha,
     double? toAlpha,
+    VoidCallback? onComplete,
   }) {
     return AnimationParams(
       springConfig: springConfig ?? this.springConfig,
@@ -86,6 +98,7 @@ class AnimationParams {
       toScale: toScale ?? this.toScale,
       alpha: alpha ?? this.alpha,
       toAlpha: toAlpha ?? this.toAlpha,
+      onComplete: onComplete,
     );
   }
 }
@@ -112,15 +125,18 @@ class _AnimationWidgetState extends State<AnimationWidget>
   late Animation<double> _scaleAnimation;
   late Animation<double> _alphaAnimation;
 
+  AnimationParams? _currentParams;
+
   @override
   void initState() {
     super.initState();
+    _currentParams = widget.animParams.value;
     _controller = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: widget.animParams.value.curveConfig.durationMs),
     );
     _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+      if (status == AnimationStatus.completed) {
         _onAnimationEnd();
       }
     });
@@ -141,11 +157,16 @@ class _AnimationWidgetState extends State<AnimationWidget>
   @override
   void dispose() {
     widget.animParams.removeListener(_onParamsChanged);
+    _currentParams?.callOnComplete();
     _controller.dispose();
     super.dispose();
   }
 
   void _onParamsChanged() {
+    // 旧动画被打断，主动调用旧的 onComplete，避免回调丢失
+    // callOnComplete 内部自动清空，保证只调一次
+    _currentParams?.callOnComplete();
+    _currentParams = widget.animParams.value;
     _controller.reset();
     _controller.duration = Duration(milliseconds: widget.animParams.value.curveConfig.durationMs);
     _startAnimations();
@@ -206,6 +227,7 @@ class _AnimationWidgetState extends State<AnimationWidget>
 
   void _onAnimationEnd() {
     _log.d('end');
+    widget.animParams.value.callOnComplete();
   }
 
   @override

@@ -162,7 +162,7 @@ void main() {
       nA.addListener(() {});
       nB.addListener(() {});
 
-      controller.prepareLayoutAnimations(adapter: adapter, addIndexes: [0]);
+      controller.performLayoutAnimations(adapter: adapter, addIndexes: [0]);
 
       expect(nA.value.offset.dx, closeTo(-100, 0.1));
       expect(nB.value.offset.dx, closeTo(-100, 0.1));
@@ -181,7 +181,7 @@ void main() {
       nA.addListener(() {});
       nB.addListener(() {});
 
-      controller.prepareLayoutAnimations(adapter: adapter, addIndexes: [1]);
+      controller.performLayoutAnimations(adapter: adapter, addIndexes: [1]);
 
       // 'a' stays at index 0 → old=0, new=0 → offset ~0, skipped
       expect(nA.value.offset, Offset.zero);
@@ -203,7 +203,7 @@ void main() {
       nB.addListener(() {});
       nC.addListener(() {});
 
-      controller.prepareLayoutAnimations(adapter: adapter, removeIndexes: [0]);
+      controller.performLayoutAnimations(adapter: adapter, removeIndexes: [0]);
 
       expect(nB.value.offset.dx, closeTo(100, 0.1));
       expect(nC.value.offset.dx, closeTo(100, 0.1));
@@ -217,7 +217,7 @@ void main() {
       final nA = controller.listenAnimatorParams('a'.hashCode.toString());
       nA.addListener(() {});
 
-      controller.prepareLayoutAnimations(adapter: adapter, removeIndexes: [0]);
+      controller.performLayoutAnimations(adapter: adapter, removeIndexes: [0]);
 
       // 'a' is being removed, should not get animation params
       expect(nA.value.offset, Offset.zero);
