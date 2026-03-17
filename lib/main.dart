@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'stack_demo.dart';
 import 'grid_demo.dart';
 import 'animation_demo.dart';
+import 'flex_demo.dart';
 
 void main() => runApp(const MyApp());
 
@@ -55,6 +56,20 @@ class DemoListScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const GridDemo()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: 'FlexBox 布局',
+            description: 'FlexLayoutAlgorithm + justify-content / align-items',
+            icon: Icons.view_week,
+            color: Colors.indigo,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FlexDemo()),
               );
             },
           ),

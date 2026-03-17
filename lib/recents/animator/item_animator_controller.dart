@@ -138,6 +138,7 @@ class ItemAnimatorController extends ChangeNotifier {
     double? offsetX,
     double? offsetY,
     double? scalle,
+    double? fromAlpha,
     double? alpha,
     VoidCallback? onComplete
   }) {
@@ -150,7 +151,8 @@ class ItemAnimatorController extends ChangeNotifier {
           offset: Offset.zero,
           toOffset: Offset.zero,
           scale: 1.0,
-          alpha: 1.0,
+          alpha: fromAlpha ?? 1.0,
+          toAlpha: alpha ?? 1.0,
           onComplete: onComplete
         ),
       );
@@ -158,6 +160,8 @@ class ItemAnimatorController extends ChangeNotifier {
       if (notifier.value.index == index) {
         notifier.value = notifier.value.copy(
           curveConfig: curveConfig,
+          offset: fromAlpha != null ? notifier.value.offset : null,
+          alpha: fromAlpha ?? notifier.value.alpha,
           toOffset: Offset(
             offsetX ?? notifier.value.offset.dx,
             offsetY ?? notifier.value.offset.dy,
