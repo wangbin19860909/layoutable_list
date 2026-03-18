@@ -9,8 +9,7 @@ LayoutParams getParams(
   double scrollOffset = 0,
   double mainAxisExtent = 400,
   double crossAxisExtent = 600,
-  double itemWidth = 300,
-  double itemHeight = 500,
+  Size itemSize = const Size(300, 500),
   int itemCount = 5,
 }) {
   return algo.getLayoutParamsForPosition(
@@ -18,13 +17,14 @@ LayoutParams getParams(
     scrollOffset: scrollOffset,
     mainAxisExtent: mainAxisExtent,
     crossAxisExtent: crossAxisExtent,
-    itemWidth: itemWidth,
-    itemHeight: itemHeight,
+    itemSize: itemSize,
     itemCount: itemCount,
     padding: EdgeInsets.zero,
     reverseLayout: false,
     textDirection: TextDirection.ltr,
     scrollDirection: Axis.horizontal,
+    edgeSpacing: EdgeInsets.zero,
+    itemSpacing: Size.zero,
   );
 }
 
@@ -36,7 +36,8 @@ void main() {
   group('computeMaxScrollOffset', () {
     test('returns 0 for empty list', () {
       expect(
-        algo.computeMaxScrollOffset(itemExtent: 300, itemCount: 0, viewportExtent: 400),
+        algo.computeMaxScrollOffset(itemExtent: 300, itemCount: 0, viewportExtent: 400,
+            edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero),
         0,
       );
     });
@@ -47,6 +48,8 @@ void main() {
         itemExtent: 300,
         itemCount: 5,
         viewportExtent: 400,
+        edgeSpacing: EdgeInsets.zero,
+        itemSpacing: Size.zero,
       );
       expect(max, closeTo(4 * 300 + 400, 0.1));
     });
@@ -103,10 +106,11 @@ void main() {
         algo.getMinVisibleIndex(
           scrollOffset: 0, itemCount: 0,
           mainAxisExtent: 400, crossAxisExtent: 600,
-          itemWidth: 300, itemHeight: 500,
+          itemSize: const Size(300, 500),
           padding: EdgeInsets.zero, reverseLayout: false,
           cacheExtent: 0, textDirection: TextDirection.ltr,
           scrollDirection: Axis.horizontal,
+          edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero,
         ),
         0,
       );
@@ -116,10 +120,11 @@ void main() {
       final min = algo.getMinVisibleIndex(
         scrollOffset: 300, itemCount: 5,
         mainAxisExtent: 400, crossAxisExtent: 600,
-        itemWidth: 300, itemHeight: 500,
+        itemSize: const Size(300, 500),
         padding: EdgeInsets.zero, reverseLayout: false,
         cacheExtent: 0, textDirection: TextDirection.ltr,
         scrollDirection: Axis.horizontal,
+        edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero,
       );
       expect(min, greaterThanOrEqualTo(0));
     });
@@ -131,10 +136,11 @@ void main() {
         algo.getMaxVisibleIndex(
           scrollOffset: 0, itemCount: 0,
           mainAxisExtent: 400, crossAxisExtent: 600,
-          itemWidth: 300, itemHeight: 500,
+          itemSize: const Size(300, 500),
           padding: EdgeInsets.zero, reverseLayout: false,
           cacheExtent: 0, textDirection: TextDirection.ltr,
           scrollDirection: Axis.horizontal,
+          edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero,
         ),
         0,
       );
@@ -144,10 +150,11 @@ void main() {
       final max = algo.getMaxVisibleIndex(
         scrollOffset: 0, itemCount: 5,
         mainAxisExtent: 400, crossAxisExtent: 600,
-        itemWidth: 300, itemHeight: 500,
+        itemSize: const Size(300, 500),
         padding: EdgeInsets.zero, reverseLayout: false,
         cacheExtent: 0, textDirection: TextDirection.ltr,
         scrollDirection: Axis.horizontal,
+        edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero,
       );
       expect(max, lessThanOrEqualTo(4));
     });

@@ -16,6 +16,8 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     SliverConstraints constraints, {
     required double from,
     required double to,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) => constraints.viewportMainAxisExtent;
 
   @override
@@ -23,6 +25,8 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     // 让最后一个 item 能滚动到和第一个 item 一样的位置（视口起始位置）
     // scrollExtent = 最后一个 item 的起始位置 + 视口大小
@@ -37,6 +41,8 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double scrollOffset,
     required double viewportExtent,
     required bool reverseLayout,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     // 从缓存中获取该 index 的 LayoutParams
     final params = layoutParamsCache?[index];
@@ -63,15 +69,16 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double scrollOffset,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     bool reverseLayout = false,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
-    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
+    final itemExtent = scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
     final resolvedPadding = padding.resolve(textDirection);
     // 堆叠只支持横向滚动，所以下面的计算都是基于这个前提
     final visibleWidth = mainAxisExtent - resolvedPadding.horizontal;
@@ -114,11 +121,11 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     final shadowAlpha = _getShadowAlpha(depth);
 
     // 计算 Y 轴位置（垂直居中）
-    final scaledHeight = itemHeight * scale;
+    final scaledHeight = itemSize.height * scale;
     final offsetY = (crossAxisExtent - scaledHeight) / 2;
 
     // offsetX 是相对于卡片居中位置的偏移
-    final scaledWidth = itemWidth * scale;
+    final scaledWidth = itemSize.width * scale;
     // 居中位置需要考虑 paddingLeft 的偏移
     final centeredLeft =
         (visibleWidth - scaledWidth) / 2 + resolvedPadding.left;
@@ -158,16 +165,17 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
     required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     if (itemCount == 0) return 0;
-    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
+    final itemExtent = scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
     final scrollPosition = _scrollOffsetToPosition(scrollOffset, itemExtent);
     
     int startIndex = math.max(scrollPosition.floor() - 1, 0);
@@ -178,8 +186,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         scrollOffset: scrollOffset,
         mainAxisExtent: mainAxisExtent,
         crossAxisExtent: crossAxisExtent,
-        itemWidth: itemWidth,
-        itemHeight: itemHeight,
+        itemSize: itemSize,
         itemCount: itemCount,
         padding: padding,
         reverse: reverseLayout,
@@ -206,16 +213,17 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
     required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     if (itemCount == 0) return 0;
-    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
+    final itemExtent = scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
     final scrollPosition = _scrollOffsetToPosition(scrollOffset, itemExtent);
     
     int endIndex = math.max(scrollPosition.floor() + 4, itemCount - 1);
@@ -226,8 +234,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         scrollOffset: scrollOffset,
         mainAxisExtent: mainAxisExtent,
         crossAxisExtent: crossAxisExtent,
-        itemWidth: itemWidth,
-        itemHeight: itemHeight,
+        itemSize: itemSize,
         itemCount: itemCount,
         padding: padding,
         reverse: reverseLayout,

@@ -1,35 +1,19 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'layout_algorithm.dart';
 
 /// 网格布局算法实现
 /// 支持横向和纵向滚动的网格布局，类似 GridView
+///
+/// 间距通过外部传入的 edgeSpacing / itemSpacing 控制：
+/// - edgeSpacing：item 与容器边缘的间距（EdgeInsetsGeometry）
+/// - itemSpacing：item 之间的间距（Size），主轴方向用 width（横向）或 height（纵向），
+///   交叉轴方向用 height（横向）或 width（纵向）
 class GridLayoutAlgorithm extends LayoutAlgorithm {
   /// 交叉轴方向的 span 数量
   /// - 纵向滚动时：spanCount 表示列数
   /// - 横向滚动时：spanCount 表示行数
   final int spanCount;
-
-  /// 交叉轴方向的间距
-  /// - 纵向滚动时：列间距
-  /// - 横向滚动时：行间距
-  final double crossAxisSpacing;
-
-  /// 主轴方向的间距
-  /// - 纵向滚动时：行间距
-  /// - 横向滚动时：列间距
-  final double mainAxisSpacing;
-
-  /// 主轴方向与容器边缘的间距
-  /// - 纵向滚动时：上下边距
-  /// - 横向滚动时：左右边距
-  final double mainAxisPadding;
-
-  /// 交叉轴方向与容器边缘的间距
-  /// - 纵向滚动时：左右边距
-  /// - 横向滚动时：上下边距
-  final double crossAxisPadding;
 
   /// 滚动方向
   final Axis scrollDirection;
@@ -39,41 +23,77 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
 
   GridLayoutAlgorithm({
     this.spanCount = 3,
-    this.crossAxisSpacing = 8.0,
-    this.mainAxisSpacing = 8.0,
-    this.mainAxisPadding = 0.0,
-    this.crossAxisPadding = 0.0,
     this.scrollDirection = Axis.vertical,
     this.maxOverscrollCount = 1.0,
   });
 
   /// 获取列数（纵向滚动）或行数（横向滚动）
   int get columnCount => scrollDirection == Axis.vertical ? spanCount : 0;
-  
+
   /// 获取行数（横向滚动）或列数（纵向滚动）
   int get rowCount => scrollDirection == Axis.horizontal ? spanCount : 0;
+
+  // ── 从 edgeSpacing / itemSpacing 提取各方向间距 ──────────────────────────
+
+  /// 主轴方向 item 间距
+  double _mainAxisSpacing(Size itemSpacing) =>
+      scrollDirection == Axis.horizontal ? itemSpacing.width : itemSpacing.height;
+
+  /// 交叉轴方向 item 间距
+  double _crossAxisSpacing(Size itemSpacing) =>
+      scrollDirection == Axis.horizontal ? itemSpacing.height : itemSpacing.width;
+
+  /// 主轴方向边缘间距（起始侧）
+  double _mainAxisEdgeStart(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
+    final r = edgeSpacing.resolve(textDirection);
+    return scrollDirection == Axis.horizontal ? r.left : r.top;
+  }
+
+  /// 主轴方向边缘间距（末尾侧，用于 computeMaxScrollOffset）
+  double _mainAxisEdgeEnd(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
+    final r = edgeSpacing.resolve(textDirection);
+    return scrollDirection == Axis.horizontal ? r.right : r.bottom;
+  }
+
+  /// 交叉轴方向边缘间距（起始侧）
+  double _crossAxisEdgeStart(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
+    final r = edgeSpacing.resolve(textDirection);
+    return scrollDirection == Axis.horizontal ? r.top : r.left;
+  }
+
+  /// 交叉轴方向边缘间距（末尾侧）
+  double _crossAxisEdgeEnd(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
+    final r = edgeSpacing.resolve(textDirection);
+    return scrollDirection == Axis.horizontal ? r.bottom : r.right;
+  }
+
 
   @override
   double? calculatePaintExtent(
     SliverConstraints constraints, {
     required double from,
     required double to,
-  }) => constraints.viewportMainAxisExtent;
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
+  }) =>
+      constraints.viewportMainAxisExtent;
 
   @override
   double computeMaxScrollOffset({
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     if (itemCount == 0) return 0.0;
-    
-    final int lastIndex = itemCount - 1;
-    final int lastMainAxisIndex = lastIndex ~/ spanCount;
-    // 修复：需要加上最后一个 item 的 itemExtent
-    final result = mainAxisPadding + lastMainAxisIndex * (itemExtent + mainAxisSpacing) + itemExtent;
-    
-    return result;
+
+    final double mainSpacing = _mainAxisSpacing(itemSpacing);
+    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, TextDirection.ltr);
+    final double edgeEnd = _mainAxisEdgeEnd(edgeSpacing, TextDirection.ltr);
+
+    final int lastMainAxisIndex = (itemCount - 1) ~/ spanCount;
+    return edgeStart + lastMainAxisIndex * (itemExtent + mainSpacing) + itemExtent + edgeEnd;
   }
 
   @override
@@ -82,41 +102,46 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double scrollOffset,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     bool reverseLayout = false,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
-    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
-    final startTime = DateTime.now();
-    
-    // 解析 padding 为具体的 EdgeInsets，使用实际的 textDirection
+    final double itemExtent =
+        scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
+
     final resolvedPadding = padding.resolve(textDirection);
 
-    final double clampedScrollOffset = _clampScrollOffset(scrollOffset, itemExtent, itemCount, mainAxisExtent);
-    
+    final double clampedScrollOffset = _clampScrollOffset(
+      scrollOffset, itemExtent, itemCount, mainAxisExtent,
+      edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
+    );
+
     if (scrollDirection == Axis.vertical) {
       return _getVerticalLayoutParams(
         index: index,
         scrollOffset: clampedScrollOffset,
         containerWidth: mainAxisExtent,
-        containerHeight: crossAxisExtent,
         itemExtent: itemExtent,
-        startTime: startTime,
         resolvedPadding: resolvedPadding,
+        edgeSpacing: edgeSpacing,
+        textDirection: textDirection,
+        itemSpacing: itemSpacing,
       );
     } else {
       return _getHorizontalLayoutParams(
         index: index,
         scrollOffset: clampedScrollOffset,
-        containerWidth: mainAxisExtent,
         containerHeight: crossAxisExtent,
         itemExtent: itemExtent,
-        startTime: startTime,
         resolvedPadding: resolvedPadding,
+        edgeSpacing: edgeSpacing,
+        textDirection: textDirection,
+        itemSpacing: itemSpacing,
       );
     }
   }
@@ -125,26 +150,33 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required int index,
     required double scrollOffset,
     required double containerWidth,
-    required double containerHeight,
     required double itemExtent,
-    required DateTime startTime,
     required EdgeInsets resolvedPadding,
+    required EdgeInsetsGeometry edgeSpacing,
+    required TextDirection textDirection,
+    required Size itemSpacing,
   }) {
     final int row = index ~/ spanCount;
     final int column = index % spanCount;
 
-    final double totalCrossAxisSpacing = crossAxisSpacing * (spanCount - 1);
-    final double availableWidth = containerWidth - totalCrossAxisSpacing - crossAxisPadding * 2;
-    final double cellWidth = availableWidth / spanCount;
-    final double cellHeight = itemExtent;
+    final double crossSpacing = _crossAxisSpacing(itemSpacing);
+    final double mainSpacing = _mainAxisSpacing(itemSpacing);
+    final double crossEdgeStart = _crossAxisEdgeStart(edgeSpacing, textDirection);
+    final double crossEdgeEnd = _crossAxisEdgeEnd(edgeSpacing, textDirection);
+    final double mainEdgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
 
-    // 使用传入的 padding.left 和内部的 crossAxisPadding
-    final double left = resolvedPadding.left + crossAxisPadding + column * (cellWidth + crossAxisSpacing);
-    // 直接使用 scrollOffset，不需要转换
-    final double top = resolvedPadding.top + mainAxisPadding + row * (itemExtent + mainAxisSpacing) - scrollOffset;
+    final double totalCrossSpacing = crossSpacing * (spanCount - 1);
+    final double availableWidth =
+        containerWidth - totalCrossSpacing - crossEdgeStart - crossEdgeEnd;
+    final double cellWidth = availableWidth / spanCount;
+
+    final double left =
+        resolvedPadding.left + crossEdgeStart + column * (cellWidth + crossSpacing);
+    final double top =
+        resolvedPadding.top + mainEdgeStart + row * (itemExtent + mainSpacing) - scrollOffset;
 
     return LayoutParams(
-      rect: Rect.fromLTWH(left, top, cellWidth, cellHeight),
+      rect: Rect.fromLTWH(left, top, cellWidth, itemExtent),
       scale: 1.0,
       alpha: 1.0,
       dimming: 0.0,
@@ -157,27 +189,34 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   LayoutParams _getHorizontalLayoutParams({
     required int index,
     required double scrollOffset,
-    required double containerWidth,
     required double containerHeight,
     required double itemExtent,
-    required DateTime startTime,
     required EdgeInsets resolvedPadding,
+    required EdgeInsetsGeometry edgeSpacing,
+    required TextDirection textDirection,
+    required Size itemSpacing,
   }) {
     final int column = index ~/ spanCount;
     final int row = index % spanCount;
 
-    final double totalCrossAxisSpacing = crossAxisSpacing * (spanCount - 1);
-    final double availableHeight = containerHeight - totalCrossAxisSpacing - crossAxisPadding * 2;
-    final double cellWidth = itemExtent;
+    final double crossSpacing = _crossAxisSpacing(itemSpacing);
+    final double mainSpacing = _mainAxisSpacing(itemSpacing);
+    final double crossEdgeStart = _crossAxisEdgeStart(edgeSpacing, textDirection);
+    final double crossEdgeEnd = _crossAxisEdgeEnd(edgeSpacing, textDirection);
+    final double mainEdgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
+
+    final double totalCrossSpacing = crossSpacing * (spanCount - 1);
+    final double availableHeight =
+        containerHeight - totalCrossSpacing - crossEdgeStart - crossEdgeEnd;
     final double cellHeight = availableHeight / spanCount;
 
-    // 直接使用 scrollOffset，不需要转换
-    final double left = resolvedPadding.left + mainAxisPadding + column * (itemExtent + mainAxisSpacing) - scrollOffset;
-    // 使用传入的 padding.top 和内部的 crossAxisPadding
-    final double top = resolvedPadding.top + crossAxisPadding + row * (cellHeight + crossAxisSpacing);
+    final double left =
+        resolvedPadding.left + mainEdgeStart + column * (itemExtent + mainSpacing) - scrollOffset;
+    final double top =
+        resolvedPadding.top + crossEdgeStart + row * (cellHeight + crossSpacing);
 
     return LayoutParams(
-      rect: Rect.fromLTWH(left, top, cellWidth, cellHeight),
+      rect: Rect.fromLTWH(left, top, itemExtent, cellHeight),
       scale: 1.0,
       alpha: 1.0,
       dimming: 0.0,
@@ -193,27 +232,33 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
     required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     if (itemCount == 0) return 0;
-    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
+    final double itemExtent =
+        scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
+    final double mainSpacing = _mainAxisSpacing(itemSpacing);
+    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
     final resolvedPadding = padding.resolve(textDirection);
-    final double mainAxisPaddingFromEdgeInsets = scrollDirection == Axis.vertical 
-        ? resolvedPadding.top 
-        : resolvedPadding.left;
+    final double paddingStart =
+        scrollDirection == Axis.vertical ? resolvedPadding.top : resolvedPadding.left;
 
-    final double clampedScrollOffset = _clampScrollOffset(scrollOffset, itemExtent, itemCount, mainAxisExtent);
+    final double clampedScrollOffset = _clampScrollOffset(
+      scrollOffset, itemExtent, itemCount, mainAxisExtent,
+      edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
+    );
 
-    final double totalMainAxisPadding = mainAxisPaddingFromEdgeInsets + mainAxisPadding;
+    final double totalStart = paddingStart + edgeStart;
     final int firstVisibleMainAxis = math.max(
       0,
-      ((clampedScrollOffset - totalMainAxisPadding - cacheExtent) / (itemExtent + mainAxisSpacing)).floor(),
+      ((clampedScrollOffset - totalStart - cacheExtent) / (itemExtent + mainSpacing)).floor(),
     );
 
     return firstVisibleMainAxis * spanCount;
@@ -225,42 +270,38 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
     required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
     if (itemCount == 0) return 0;
-    final itemExtent = scrollDirection == Axis.horizontal ? itemWidth : itemHeight;
+    final double itemExtent =
+        scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
+    final double mainSpacing = _mainAxisSpacing(itemSpacing);
+    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
     final resolvedPadding = padding.resolve(textDirection);
-    final double mainAxisPaddingFromEdgeInsets = scrollDirection == Axis.vertical 
-        ? resolvedPadding.top 
-        : resolvedPadding.left;
+    final double paddingStart =
+        scrollDirection == Axis.vertical ? resolvedPadding.top : resolvedPadding.left;
 
-    final double clampedScrollOffset = _clampScrollOffset(scrollOffset, itemExtent, itemCount, mainAxisExtent);
+    final double clampedScrollOffset = _clampScrollOffset(
+      scrollOffset, itemExtent, itemCount, mainAxisExtent,
+      edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
+    );
 
+    final double totalStart = paddingStart + edgeStart;
     final double viewportEnd = clampedScrollOffset + mainAxisExtent + cacheExtent;
-    final double totalMainAxisPadding = mainAxisPaddingFromEdgeInsets + mainAxisPadding;
-    final int lastVisibleMainAxis = ((viewportEnd - totalMainAxisPadding) / (itemExtent + mainAxisSpacing)).floor();
+    final int lastVisibleMainAxis =
+        ((viewportEnd - totalStart) / (itemExtent + mainSpacing)).floor();
 
     return math.min(
       math.max((lastVisibleMainAxis + 1) * spanCount - 1, 0),
       itemCount - 1,
     );
-  }
-
-  /// 对 scrollOffset 施加软边界阻尼，内部自动计算 maxScroll
-  double _clampScrollOffset(double scrollOffset, double itemExtent, int itemCount, double mainAxisExtent) {
-    final double maxScroll = computeMaxScrollOffset(
-      itemExtent: itemExtent, itemCount: itemCount, viewportExtent: mainAxisExtent,
-    );
-    final double margin = maxOverscrollCount * itemExtent;
-    // 内容铺不满时（maxScroll <= mainAxisExtent），实际不可滚动，有效 max 为 0
-    final double effectiveMax = maxScroll > mainAxisExtent ? maxScroll - mainAxisExtent : 0.0;
-    return softClamp(scrollOffset, -margin, effectiveMax + margin, itemExtent);
   }
 
   @override
@@ -270,8 +311,34 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double scrollOffset,
     required double viewportExtent,
     required bool reverseLayout,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) {
+    final double mainSpacing = _mainAxisSpacing(itemSpacing);
+    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, TextDirection.ltr);
     final int mainAxisIndex = index ~/ spanCount;
-    return mainAxisPadding + mainAxisIndex * (itemExtent + mainAxisSpacing);
+    return edgeStart + mainAxisIndex * (itemExtent + mainSpacing);
+  }
+
+  /// 对 scrollOffset 施加软边界阻尼
+  double _clampScrollOffset(
+    double scrollOffset,
+    double itemExtent,
+    int itemCount,
+    double mainAxisExtent, {
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
+  }) {
+    final double maxScroll = computeMaxScrollOffset(
+      itemExtent: itemExtent,
+      itemCount: itemCount,
+      viewportExtent: mainAxisExtent,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
+    );
+    final double margin = maxOverscrollCount * itemExtent;
+    final double effectiveMax =
+        maxScroll > mainAxisExtent ? maxScroll - mainAxisExtent : 0.0;
+    return softClamp(scrollOffset, -margin, effectiveMax + margin, itemExtent);
   }
 }

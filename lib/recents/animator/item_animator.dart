@@ -76,8 +76,6 @@ class ItemAnimator extends StatefulWidget {
   final ValueListenable<LayoutParams> layoutParamsListenable;
   final void Function(String itemId) onDispose;
   final Widget child;
-  final Duration duration;
-  final Curve curve;
 
   const ItemAnimator({
     super.key,
@@ -86,8 +84,6 @@ class ItemAnimator extends StatefulWidget {
     required this.layoutParamsListenable,
     required this.onDispose,
     required this.child,
-    this.duration = const Duration(milliseconds: 400),
-    this.curve = Curves.easeInOut,
   });
 
   @override
@@ -126,8 +122,7 @@ class _ItemAnimatorState extends State<ItemAnimator> {
       child: AnimatedSizeBox(
         key: ValueKey('size_${widget.itemId}'),
         sizeParamsNotifier: _sizeParamsMerger,
-        duration: widget.duration,
-        curve: widget.curve,
+        alignment: Alignment.topLeft,
         onEnd: () {
           _sizeParamsMerger.markAnimationEnd();
         },

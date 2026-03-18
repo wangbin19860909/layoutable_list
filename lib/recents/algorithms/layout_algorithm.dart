@@ -108,13 +108,14 @@ abstract class LayoutAlgorithm {
     required double scrollOffset,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     required bool reverse,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    EdgeInsetsGeometry edgeSpacing = EdgeInsets.zero,
+    Size itemSpacing = Size.zero,
   }) {
     if (layoutParamsCache != null && layoutParamsCache!.containsKey(index)) {
       return layoutParamsCache![index]!;
@@ -125,13 +126,14 @@ abstract class LayoutAlgorithm {
       scrollOffset: scrollOffset,
       mainAxisExtent: mainAxisExtent,
       crossAxisExtent: crossAxisExtent,
-      itemWidth: itemWidth,
-      itemHeight: itemHeight,
+      itemSize: itemSize,
       itemCount: itemCount,
       padding: padding,
       reverseLayout: reverse,
       textDirection: textDirection,
       scrollDirection: scrollDirection,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
 
     if (layoutParamsCache != null) {
@@ -155,6 +157,8 @@ abstract class LayoutAlgorithm {
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   });
 
   /// 计算绘制范围（可选覆盖）
@@ -168,6 +172,8 @@ abstract class LayoutAlgorithm {
     SliverConstraints constraints, {
     required double from,
     required double to,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   }) => null;
 
   /// 根据 index 和滚动偏移量计算布局参数
@@ -193,13 +199,14 @@ abstract class LayoutAlgorithm {
     required double scrollOffset,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required int itemCount,
     required EdgeInsetsGeometry padding,
     bool reverseLayout = false,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   });
 
   /// 获取给定 scrollOffset 下的最小可见 item 索引
@@ -225,13 +232,14 @@ abstract class LayoutAlgorithm {
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
     required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   });
 
   /// 获取给定 scrollOffset 下的最大可见 item 索引
@@ -247,13 +255,14 @@ abstract class LayoutAlgorithm {
     required int itemCount,
     required double mainAxisExtent,
     required double crossAxisExtent,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
     required bool reverseLayout,
     required double cacheExtent,
     required TextDirection textDirection,
     required Axis scrollDirection,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   });
 
   /// 计算绘制范围（可选覆盖）
@@ -279,6 +288,8 @@ abstract class LayoutAlgorithm {
     required double scrollOffset,
     required double viewportExtent,
     required bool reverseLayout,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
   });
 
   /// 软边界 clamp：输出永远在 [min, max] 内，但在接近边界的 [margin] 区间内

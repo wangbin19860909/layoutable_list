@@ -61,6 +61,7 @@ class _ResetParamsCallback {
         index: index,
         offset: Offset.zero,
         toOffset: Offset.zero,
+        size: Size.zero,
       );
     }
   }
@@ -213,6 +214,8 @@ class ItemAnimatorController extends ChangeNotifier {
     EdgeInsetsGeometry? padding,
     Size? itemSize,
     double? scrollOffset,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
     VoidCallback? onComplete,
     bool refreshAfterAnimation = false,
   }) {
@@ -270,8 +273,9 @@ class ItemAnimatorController extends ChangeNotifier {
         itemCount: newItemCount,
         scrollOffset: newScrollOffset,
         padding: padding,
-        itemWidth: itemSize?.width,
-        itemHeight: itemSize?.height,
+        itemSize: itemSize,
+        edgeSpacing: edgeSpacing,
+        itemSpacing: itemSpacing,
       );
 
       final fromOffset =

@@ -37,10 +37,11 @@ abstract class LayoutManager {
     double? scrollOffset,
     double? containerWidth,
     double? containerHeight,
-    double? itemWidth,
-    double? itemHeight,
+    Size? itemSize,
     int? itemCount,
-    EdgeInsetsGeometry? padding
+    EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
   });
 
   /// 监听指定 item 的布局参数变化
@@ -105,11 +106,8 @@ abstract class LayoutManager {
 
 /// 带 CustomScrollView 的完整堆叠列表组件
 class LayoutableListWidget extends StatelessWidget {
-  /// 每个 item 的宽度计算函数
-  final double itemWidth;
-
-  /// 每个 item 的高度计算函数
-  final double itemHeight;
+  /// 每个 item 的尺寸
+  final Size itemSize;
 
   final Axis scrollDirection;
 
@@ -136,14 +134,19 @@ class LayoutableListWidget extends StatelessWidget {
   /// 缓存区域大小（可选，默认为 250.0）
   final double cacheExtent;
 
+  /// 边缘间距（item 与容器边缘的距离）
+  final EdgeInsetsGeometry edgeSpacing;
+
+  /// item 间距（主轴方向 width，交叉轴方向 height）
+  final Size itemSpacing;
+
   /// 是否反转绘制顺序（true: index 大的先绘制在下层；false: index 小的先绘制在下层）
   /// Stack 布局通常需要 true，让后面的卡片先绘制（在下层）
   final bool reversePaint;
 
   const LayoutableListWidget({
     super.key,
-    required this.itemWidth,
-    required this.itemHeight,
+    required this.itemSize,
     required this.delegate,
     required this.layoutManagerHolder,
     required this.layoutAlgorithm,
@@ -153,6 +156,8 @@ class LayoutableListWidget extends StatelessWidget {
     this.reverseLayout = false,
     this.padding = EdgeInsets.zero,
     this.cacheExtent = 250.0,
+    this.edgeSpacing = EdgeInsets.zero,
+    this.itemSpacing = Size.zero,
     this.reversePaint = false,
   });
 
@@ -166,9 +171,10 @@ class LayoutableListWidget extends StatelessWidget {
       cacheExtent: cacheExtent,
       slivers: [
         LayoutableSliverList(
-          itemWidth: itemWidth,
-          itemHeight: itemHeight,
+          itemSize: itemSize,
           padding: padding,
+          edgeSpacing: edgeSpacing,
+          itemSpacing: itemSpacing,
           delegate: delegate,
           layoutManagerHolder: layoutManagerHolder,
           layoutAlgorithm: layoutAlgorithm,
@@ -182,14 +188,17 @@ class LayoutableListWidget extends StatelessWidget {
 
 /// 支持可变宽度的堆叠 Sliver List（基于 MIUI 算法）
 class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
-  /// Item 的宽度
-  final double itemWidth;
-
-  /// Item 的高度
-  final double itemHeight;
+  /// Item 的尺寸
+  final Size itemSize;
 
   /// 左侧 padding（用于调整居中位置）
   final EdgeInsetsGeometry padding;
+
+  /// 边缘间距
+  final EdgeInsetsGeometry edgeSpacing;
+
+  /// item 间距
+  final Size itemSpacing;
 
   final ServiceHolder<LayoutManager> layoutManagerHolder;
 
@@ -205,11 +214,12 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
   const LayoutableSliverList({
     super.key,
     required super.delegate,
-    required this.itemWidth,
-    required this.itemHeight,
+    required this.itemSize,
     required this.padding,
     required this.layoutManagerHolder,
     required this.layoutAlgorithm,
+    this.edgeSpacing = EdgeInsets.zero,
+    this.itemSpacing = Size.zero,
     this.cacheExtent = 250.0,
     this.reversePaint = true,
   });
@@ -219,9 +229,10 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
     final element = context as SliverMultiBoxAdaptorElement;
     return RenderLayoutableSliverList(
       childManager: element,
-      itemWidth: itemWidth,
-      itemHeight: itemHeight,
+      itemSize: itemSize,
       padding: padding,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
       layoutManagerHolder: layoutManagerHolder,
       layoutAlgorithm: layoutAlgorithm,
       textDirection: Directionality.of(context),
@@ -236,9 +247,10 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
     RenderLayoutableSliverList renderObject,
   ) {
     renderObject
-      ..itemWidth = itemWidth
-      ..itemHeight = itemHeight
+      ..itemSize = itemSize
       ..padding = padding
+      ..edgeSpacing = edgeSpacing
+      ..itemSpacing = itemSpacing
       ..layoutAlgorithm = layoutAlgorithm
       ..textDirection = Directionality.of(context)
       ..cacheExtent = cacheExtent
@@ -299,16 +311,18 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     required super.childManager,
     required this.layoutManagerHolder,
     required LayoutAlgorithm layoutAlgorithm,
-    required double itemWidth,
-    required double itemHeight,
+    required Size itemSize,
     required EdgeInsetsGeometry padding,
+    required EdgeInsetsGeometry edgeSpacing,
+    required Size itemSpacing,
     required TextDirection textDirection,
     required double cacheExtent,
     bool reversePaint = true,
   }) : _layoutAlgorithm = layoutAlgorithm,
-       _itemWidth = itemWidth,
-       _itemHeight = itemHeight,
+       _itemSize = itemSize,
        _padding = padding,
+       _edgeSpacing = edgeSpacing,
+       _itemSpacing = itemSpacing,
        _textDirection = textDirection,
        _cacheExtent = cacheExtent,
        _reversePaint = reversePaint {
@@ -336,21 +350,32 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     markNeedsLayout();
   }
 
-  double _itemWidth;
-  double get itemWidth => _itemWidth;
-  set itemWidth(double value) {
-    if (_itemWidth == value) return;
-    _itemWidth = value;
+  EdgeInsetsGeometry _edgeSpacing;
+  EdgeInsetsGeometry get edgeSpacing => _edgeSpacing;
+  set edgeSpacing(EdgeInsetsGeometry value) {
+    if (_edgeSpacing == value) return;
+    _edgeSpacing = value;
     markNeedsLayout();
   }
 
-  double _itemHeight;
-  double get itemHeight => _itemHeight;
-  set itemHeight(double value) {
-    if (_itemHeight == value) return;
-    _itemHeight = value;
+  Size _itemSpacing;
+  Size get itemSpacing => _itemSpacing;
+  set itemSpacing(Size value) {
+    if (_itemSpacing == value) return;
+    _itemSpacing = value;
     markNeedsLayout();
   }
+
+  Size _itemSize;
+  Size get itemSize => _itemSize;
+  set itemSize(Size value) {
+    if (_itemSize == value) return;
+    _itemSize = value;
+    markNeedsLayout();
+  }
+
+  double get itemWidth => _itemSize.width;
+  double get itemHeight => _itemSize.height;
 
   @override
   double get scrollOffset {
@@ -368,6 +393,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemExtent: itemExtent,
       itemCount: itemCount,
       viewportExtent: constraints.viewportMainAxisExtent,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
     
     return math.max(actualScrollExtent, constraints.viewportMainAxisExtent + 1.0);
@@ -382,23 +409,26 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     double? scrollOffset,
     double? containerWidth,
     double? containerHeight,
-    double? itemWidth,
-    double? itemHeight,
+    Size? itemSize,
     int? itemCount,
     EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
   }) {
+    final resolvedItemSize = itemSize ?? this.itemSize;
     return _layoutAlgorithm.getLayoutParamsForPosition(
       index: index,
       scrollOffset: scrollOffset ?? constraints.scrollOffset + constraints.overlap,
       mainAxisExtent: containerWidth ?? constraints.viewportMainAxisExtent,
       crossAxisExtent: containerHeight ?? constraints.crossAxisExtent,
-      itemWidth: itemWidth ?? this.itemWidth,
-      itemHeight: itemHeight ?? this.itemHeight,
+      itemSize: resolvedItemSize,
       itemCount: itemCount ?? childManager.childCount,
       padding: padding ?? this.padding,
       reverseLayout: isReversed,
       textDirection: textDirection,
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
+      edgeSpacing: edgeSpacing ?? this.edgeSpacing,
+      itemSpacing: itemSpacing ?? this.itemSpacing,
     );
   }
 
@@ -471,6 +501,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       constraints,
       from: from,
       to: to,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
     if (override != null) return override.clamp(0.0, constraints.viewportMainAxisExtent);
     return super.calculatePaintOffset(constraints, from: from, to: to);
@@ -485,6 +517,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemExtent: itemExtent,
       itemCount: itemCount,
       viewportExtent: constraints.viewportMainAxisExtent,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
     
     // 确保至少大于 viewport，这样即使内容少也能 overscroll
@@ -547,13 +581,14 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemCount: childManager.childCount,
       mainAxisExtent: constraints.viewportMainAxisExtent,
       crossAxisExtent: constraints.crossAxisExtent,
-      itemWidth: itemWidth,
-      itemHeight: itemHeight,
+      itemSize: itemSize,
       padding: padding,
       reverseLayout: isReversed,
       cacheExtent: cacheExtent,
       textDirection: textDirection,
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
     
     return minIndex;
@@ -566,13 +601,14 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemCount: childManager.childCount,
       mainAxisExtent: constraints.viewportMainAxisExtent,
       crossAxisExtent: constraints.crossAxisExtent,
-      itemWidth: itemWidth,
-      itemHeight: itemHeight,
+      itemSize: itemSize,
       padding: padding,
       reverseLayout: isReversed,
       cacheExtent: cacheExtent,
       textDirection: textDirection,
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
     
     return maxIndex;
@@ -586,6 +622,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       scrollOffset: constraints.scrollOffset + constraints.overlap,
       viewportExtent: constraints.viewportMainAxisExtent,
       reverseLayout: isReversed,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
   }
 

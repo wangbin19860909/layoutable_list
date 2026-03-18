@@ -1,20 +1,30 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import '../algorithms/layout_algorithm.dart';
 import '../../utils/logger.dart';
+import 'animation_widget.dart';
 import 'item_animator.dart';
 
 /// 尺寸动画参数
 class SizeAnimationParams {
   /// 目标尺寸
   final Size size;
-  
+
   /// 是否执行动画
   final bool animate;
+
+  /// 弹簧动画配置（优先于 curveConfig）
+  final SpringConfig? springConfig;
+
+  /// 曲线动画配置
+  final CurveConfig curveConfig;
 
   const SizeAnimationParams({
     required this.size,
     required this.animate,
+    this.springConfig,
+    this.curveConfig = const CurveConfig(curve: Curves.easeInOut, durationMs: 400),
   });
 
   @override
@@ -23,10 +33,13 @@ class SizeAnimationParams {
       other is SizeAnimationParams &&
           runtimeType == other.runtimeType &&
           size == other.size &&
-          animate == other.animate;
+          animate == other.animate &&
+          springConfig == other.springConfig &&
+          curveConfig == other.curveConfig;
 
   @override
-  int get hashCode => size.hashCode ^ animate.hashCode;
+  int get hashCode =>
+      size.hashCode ^ animate.hashCode ^ springConfig.hashCode ^ curveConfig.hashCode;
 
   @override
   String toString() => 'SizeAnimationParams(size: $size, animate: $animate)';
@@ -86,7 +99,13 @@ class SizeAnimationParamsMerger extends ValueNotifier<SizeAnimationParams> {
       value = SizeAnimationParams(size: layoutSize, animate: false);
     } else {
       _isAnimating = true;
-      value = SizeAnimationParams(size: newSize, animate: true);
+      final p = paramsNotifier.value;
+      value = SizeAnimationParams(
+        size: newSize,
+        animate: true,
+        springConfig: p.springConfig,
+        curveConfig: p.curveConfig,
+      );
     }
   }
   
@@ -120,12 +139,6 @@ class AnimatedSizeBox extends StatefulWidget {
   /// 子组件
   final Widget child;
 
-  /// 动画时长
-  final Duration duration;
-
-  /// 动画曲线
-  final Curve curve;
-
   /// 对齐方式
   final Alignment alignment;
 
@@ -136,9 +149,7 @@ class AnimatedSizeBox extends StatefulWidget {
     super.key,
     required this.sizeParamsNotifier,
     required this.child,
-    this.duration = const Duration(milliseconds: 400),
-    this.curve = Curves.easeInOut,
-    this.alignment = Alignment.topLeft,
+    this.alignment = Alignment.center,
     this.onEnd,
   });
 
@@ -158,7 +169,7 @@ class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
   void initState() {
     super.initState();
     _currentSize = widget.sizeParamsNotifier.value.size;
-    _controller = AnimationController(vsync: this, duration: widget.duration);
+    _controller = AnimationController(vsync: this);
     _controller.addStatusListener(_onStatus);
     _sizeAnimation = AlwaysStoppedAnimation(_currentSize);
     widget.sizeParamsNotifier.addListener(_onParamsChanged);
@@ -174,13 +185,24 @@ class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
     _sizeAnimation = Tween<Size>(
       begin: _currentSize,
       end: targetSize,
-    ).animate(CurvedAnimation(parent: _controller, curve: widget.curve));
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: params.springConfig != null ? Curves.linear : params.curveConfig.curve,
+    ));
 
     if (params.animate) {
       _isAnimating = true;
-      _controller.duration = widget.duration;
       _log.d('start size ${_currentSize.width.toStringAsFixed(1)}×${_currentSize.height.toStringAsFixed(1)} → ${targetSize.width.toStringAsFixed(1)}×${targetSize.height.toStringAsFixed(1)}');
-      _controller.forward(from: 0.0);
+      if (params.springConfig != null) {
+        final sc = params.springConfig!;
+        _controller.animateWith(SpringSimulation(
+          SpringDescription(stiffness: sc.stiffness, damping: sc.damping, mass: 1.0),
+          0.0, 1.0, sc.velocity,
+        ));
+      } else {
+        _controller.duration = Duration(milliseconds: params.curveConfig.durationMs);
+        _controller.forward(from: 0.0);
+      }
     } else {
       // 不做动画，直接到位
       _isAnimating = false;

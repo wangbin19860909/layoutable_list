@@ -202,8 +202,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         backgroundColor: Colors.blue,
       ),
       body: LayoutableListWidget(
-        itemWidth: itemWidth,
-        itemHeight: itemHeight,
+        itemSize: Size(itemWidth, itemHeight),
         scrollDirection: Axis.horizontal,
         reverseLayout: false,
         reversePaint: true,

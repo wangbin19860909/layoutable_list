@@ -23,7 +23,9 @@ class _FlexDemoState extends State<FlexDemo> {
   FlexJustifyContent _justify = FlexJustifyContent.start;
   FlexAlignItems _align = FlexAlignItems.center;
 
-  static const _itemSize = 30.0;
+  static const _baseItemSize = 80.0;
+  static const _baseSpacing = 8.0;
+  static const _edgeH = 12.0; // horizontal edge padding (each side)
   static const _colors = [
     Colors.red, Colors.orange, Colors.yellow, Colors.green,
     Colors.teal, Colors.blue, Colors.purple, Colors.pink,
@@ -50,16 +52,32 @@ class _FlexDemoState extends State<FlexDemo> {
     super.dispose();
   }
 
+  double _containerWidth = 0;
+
   void _onAdapterChanged() => setState(() {});
+
+  /// 根据 itemCount 计算缩放后的尺寸和间距
+  ({Size itemSize, Size itemSpacing, EdgeInsetsGeometry edgeSpacing}) _scaledParams(int itemCount) {
+    final s = _scale(_containerWidth, itemCount);
+    return (
+      itemSize: Size(_baseItemSize * s, _baseItemSize * s),
+      itemSpacing: Size(_baseSpacing * s, 0),
+      edgeSpacing: EdgeInsets.symmetric(horizontal: _edgeH * s, vertical: 8),
+    );
+  }
 
   void _addItem() {
     final newId = _nextId++;
     final newIndex = _adapter.itemCount;
     final itemId = newId.toString();
+    final newParams = _scaledParams(_adapter.itemCount + 1);
 
     _animatorController.performLayoutAnimations(
       adapter: _adapter,
       addIndexes: [newIndex],
+      itemSize: newParams.itemSize,
+      itemSpacing: newParams.itemSpacing,
+      edgeSpacing: newParams.edgeSpacing,
     );
     _adapter.addItem(newId, index: newIndex);
 
@@ -75,20 +93,31 @@ class _FlexDemoState extends State<FlexDemo> {
   void _removeItem() {
     if (_adapter.itemCount == 0) return;
     final lastIndex = _adapter.itemCount - 1;
+    final newParams = _scaledParams(_adapter.itemCount - 1);
+
     _animatorController.performLayoutAnimations(
       adapter: _adapter,
       removeIndexes: [lastIndex],
+      itemSize: newParams.itemSize,
+      itemSpacing: newParams.itemSpacing,
+      edgeSpacing: newParams.edgeSpacing,
     );
     _adapter.removeAt(lastIndex);
+  }
+
+  /// 根据容器宽度计算缩放比，使所有 item 恰好放得下
+  double _scale(double containerWidth, int itemCount) {
+    if (itemCount == 0) return 1.0;
+    final totalContent = _edgeH * 2 +
+        itemCount * _baseItemSize +
+        (itemCount - 1) * _baseSpacing;
+    return (containerWidth / totalContent).clamp(0.0, 1.0);
   }
 
   FlexLayoutAlgorithm get _algorithm => FlexLayoutAlgorithm(
         justifyContent: _justify,
         alignItems: _align,
         scrollDirection: Axis.horizontal,
-        itemSpacing: 8,
-        mainAxisPadding: 12,
-        crossAxisPadding: 8,
       );
 
   @override
@@ -102,13 +131,25 @@ class _FlexDemoState extends State<FlexDemo> {
         children: [
           _buildControls(),
           Expanded(
-            child: LayoutableListWidget(
-              itemWidth: _itemSize,
-              itemHeight: _itemSize,
-              scrollDirection: Axis.horizontal,
-              layoutManagerHolder: _layoutManagerHolder,
-              layoutAlgorithm: _algorithm,
-              delegate: SliverChildBuilderDelegate(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                _containerWidth = constraints.maxWidth;
+                final s = _scale(constraints.maxWidth, _adapter.itemCount);
+                final scaledItem = _baseItemSize * s;
+                final scaledSpacing = _baseSpacing * s;
+                final scaledEdge = _edgeH * s;
+                return LayoutableListWidget(
+                  itemSize: Size(scaledItem, scaledItem),
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  layoutManagerHolder: _layoutManagerHolder,
+                  layoutAlgorithm: _algorithm,
+                  edgeSpacing: EdgeInsets.symmetric(
+                    horizontal: scaledEdge,
+                    vertical: 8,
+                  ),
+                  itemSpacing: Size(scaledSpacing, 0),
+                  delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final itemId = _adapter.getItemId(index);
                   final color = _colors[_adapter.getItem(index) % _colors.length];
@@ -131,6 +172,8 @@ class _FlexDemoState extends State<FlexDemo> {
                   return _adapter.findChildIndex(id);
                 },
               ),
+            );
+              },
             ),
           ),
         ],
@@ -159,8 +202,6 @@ class _FlexDemoState extends State<FlexDemo> {
 
   Widget _buildBox(int index, Color color) {
     return Container(
-      width: _itemSize,
-      height: _itemSize,
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(4),

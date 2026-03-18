@@ -181,20 +181,17 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
         backgroundColor: Colors.green,
       ),
       body: LayoutableListWidget(
-        itemWidth: 200,
-        itemHeight: 250,
+        itemSize: const Size(200, 250),
         scrollDirection: Axis.horizontal,
         reverseLayout: false,
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 200,
         physics: const BouncingScrollPhysics(),
+        edgeSpacing: const EdgeInsets.all(16),
+        itemSpacing: const Size(16, 16),
         layoutAlgorithm: GridLayoutAlgorithm(
           scrollDirection: Axis.horizontal,
-          spanCount: 1, // 一行
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          mainAxisPadding: 16,
-          crossAxisPadding: 16,
+          spanCount: 1,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
