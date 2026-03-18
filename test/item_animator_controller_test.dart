@@ -45,11 +45,11 @@ class MockLayoutManager implements LayoutManager {
     double? scrollOffset,
     double? containerWidth,
     double? containerHeight,
-    double? itemWidth,
-    double? itemHeight,
+    Size? itemSize,
     int? itemCount,
     EdgeInsetsGeometry? padding,
-    bool? reverseLayout,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
   }) {
     final offset = scrollOffset ?? _scrollOffset;
     final left = index * _itemExtent - offset;

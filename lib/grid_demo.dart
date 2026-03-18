@@ -132,7 +132,10 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
       _removeInterrupter = _animatorController.performLayoutAnimations(
         adapter: _adapter,
         removeIndexes: [0],
-        onComplete: () => _adapter.removeAt(0),
+        onComplete: () {
+          _removeInterrupter = null;
+          _adapter.removeAt(0);
+        },
         refreshAfterAnimation: true,
       );
     }

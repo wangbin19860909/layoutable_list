@@ -53,6 +53,8 @@ class Logger {
       error: error,
       stackTrace: stackTrace,
     );
+
+    print(output);
   }
 
   // debounce 状态：key = message前缀（取前40字符），value = 上次输出时间

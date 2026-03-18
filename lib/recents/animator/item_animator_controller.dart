@@ -27,7 +27,7 @@ class _CountCallback implements AnimationInterrupter {
 
   void call() {
     _count--;
-    if (_count == 0) {
+    if (_count <= 0) {
       final callbacks = List.of(_callbacks);
       _callbacks.clear();
       for (var callback in callbacks) {
@@ -56,7 +56,6 @@ class _ResetParamsCallback {
 
   void call(int index) {
     if (notifer.value == anchorParams) {
-      print("_ResetParamsCallback call from ${notifer.value.index} to $index");
       notifer.value = anchorParams.copy(
         index: index,
         offset: Offset.zero,
@@ -107,7 +106,6 @@ class ItemAnimatorController extends ChangeNotifier {
     String itemId,
     int index,
   ) {
-    print('listenAnimatorParams: $itemId $index');
     var notifier = _params.putIfAbsent(
       itemId,
       () => ValueNotifier(
@@ -128,7 +126,6 @@ class ItemAnimatorController extends ChangeNotifier {
   void onItemUnmounted(String itemId) {
     _params.remove(itemId);
     _log.d('onItemUnmounted: $itemId');
-    print('onItemUnmounted: $itemId');
   }
 
   /// 设置单个 item 的动画参数，立即生效，无需 commit()。
@@ -253,10 +250,6 @@ class ItemAnimatorController extends ChangeNotifier {
         if (ai <= newIndex) newIndex++;
       }
 
-      print(
-        "index=$oldIndex oldItemCount=$oldItemCount newItentCount=$newItemCount current=${layoutManager.itemCount}",
-      );
-
       final origLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: notifier.value.index,
         scrollOffset: currentScrollOffset,
@@ -292,10 +285,6 @@ class ItemAnimatorController extends ChangeNotifier {
               ? newLayoutParams.rect.topLeft - oldLayoutParams.rect.topLeft
               : Offset.zero;
 
-      print(
-        "index=$oldIndex itemId=$itemId origIndex=${notifier.value.index} fromOffset=${fromOffset} toOffset=${toOffset} notifier.value.offset=${notifier.value.offset} origLayoutParams.rect.topLeft=${origLayoutParams.rect.topLeft} oldLayoutParams.rect.topLeft=${oldLayoutParams.rect.topLeft}",
-      );
-
       if (fromOffset == toOffset) {
         continue;
       }
@@ -325,7 +314,7 @@ class ItemAnimatorController extends ChangeNotifier {
       'prepareLayoutAnimations: add=$addIndexes remove=$removeIndexes animated=${countCallback._count} items',
     );
     if (countCallback._count == 0) {
-      onComplete?.call();
+      countCallback.call();
     }
 
     return countCallback;

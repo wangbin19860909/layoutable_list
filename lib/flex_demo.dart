@@ -25,7 +25,7 @@ class _FlexDemoState extends State<FlexDemo> {
 
   static const _baseItemSize = 80.0;
   static const _baseSpacing = 8.0;
-  static const _edgeH = 12.0; // horizontal edge padding (each side)
+  static const _edgeH = 12.0;
   static const _colors = [
     Colors.red, Colors.orange, Colors.yellow, Colors.green,
     Colors.teal, Colors.blue, Colors.purple, Colors.pink,
@@ -47,16 +47,22 @@ class _FlexDemoState extends State<FlexDemo> {
   @override
   void dispose() {
     _adapter.removeListener(_onAdapterChanged);
+    _layoutManagerHolder.target?.removeListener(_onItemBoundsChanged);
     _adapter.dispose();
     _animatorController.dispose();
     super.dispose();
   }
 
   double _containerWidth = 0;
+  Rect _itemBounds = Rect.zero;
+  bool _boundsListenerRegistered = false;
 
   void _onAdapterChanged() => setState(() {});
 
-  /// 根据 itemCount 计算缩放后的尺寸和间距
+  void _onItemBoundsChanged(Rect bounds) {
+    if (mounted) setState(() => _itemBounds = bounds);
+  }
+
   ({Size itemSize, Size itemSpacing, EdgeInsetsGeometry edgeSpacing}) _scaledParams(int itemCount) {
     final s = _scale(_containerWidth, itemCount);
     return (
@@ -105,7 +111,6 @@ class _FlexDemoState extends State<FlexDemo> {
     _adapter.removeAt(lastIndex);
   }
 
-  /// 根据容器宽度计算缩放比，使所有 item 恰好放得下
   double _scale(double containerWidth, int itemCount) {
     if (itemCount == 0) return 1.0;
     final totalContent = _edgeH * 2 +
@@ -138,7 +143,14 @@ class _FlexDemoState extends State<FlexDemo> {
                 final scaledItem = _baseItemSize * s;
                 final scaledSpacing = _baseSpacing * s;
                 final scaledEdge = _edgeH * s;
-                return LayoutableListWidget(
+
+                if (!_boundsListenerRegistered &&
+                    _layoutManagerHolder.target != null) {
+                  _boundsListenerRegistered = true;
+                  _layoutManagerHolder.target!.addListener(_onItemBoundsChanged);
+                }
+
+                final list = LayoutableListWidget(
                   itemSize: Size(scaledItem, scaledItem),
                   scrollDirection: Axis.horizontal,
                   physics: const NeverScrollableScrollPhysics(),
@@ -150,29 +162,52 @@ class _FlexDemoState extends State<FlexDemo> {
                   ),
                   itemSpacing: Size(scaledSpacing, 0),
                   delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final itemId = _adapter.getItemId(index);
-                  final color = _colors[_adapter.getItem(index) % _colors.length];
-                  return KeyedSubtree(
-                    key: ValueKey(itemId),
-                    child: ItemAnimator(
-                      key: ValueKey('animator_$itemId'),
-                      itemId: itemId,
-                      paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
-                      layoutParamsListenable:
-                          _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
-                      onDispose: _animatorController.onItemUnmounted,
-                      child: _buildBox(index, color),
-                    ),
-                  );
-                },
-                childCount: _adapter.itemCount,
-                findChildIndexCallback: (key) {
-                  final id = (key as ValueKey<String>).value;
-                  return _adapter.findChildIndex(id);
-                },
-              ),
-            );
+                    (context, index) {
+                      final itemId = _adapter.getItemId(index);
+                      final color =
+                          _colors[_adapter.getItem(index) % _colors.length];
+                      return KeyedSubtree(
+                        key: ValueKey(itemId),
+                        child: ItemAnimator(
+                          key: ValueKey('animator_$itemId'),
+                          itemId: itemId,
+                          paramsNotifier: _animatorController
+                              .listenAnimatorParams(itemId, index),
+                          layoutParamsListenable: _layoutManagerHolder.target!
+                              .listenLayoutParamsForPosition(index),
+                          onDispose: _animatorController.onItemUnmounted,
+                          child: _buildBox(index, color),
+                        ),
+                      );
+                    },
+                    childCount: _adapter.itemCount,
+                    findChildIndexCallback: (key) {
+                      final id = (key as ValueKey<String>).value;
+                      return _adapter.findChildIndex(id);
+                    },
+                  ),
+                );
+
+                return Stack(
+                  children: [
+                    if (_itemBounds != Rect.zero)
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                        left: _itemBounds.left,
+                        top: _itemBounds.top,
+                        width: _itemBounds.width,
+                        height: _itemBounds.height,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    list,
+                  ],
+                );
               },
             ),
           ),

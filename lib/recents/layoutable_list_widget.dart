@@ -16,6 +16,9 @@ import 'algorithms/layout_algorithm.dart';
 /// 1. 允许 ScrollPhysics 查询 item 的布局信息
 /// 2. 提供 item 数量和大小等基本信息
 /// 3. 提供 LayoutParams 变化的监听能力
+/// LayoutManager 事件回调
+typedef OnItemBoundsChanged = void Function(Rect bounds);
+
 abstract class LayoutManager {
   /// 获取指定 item 的布局参数
   ///
@@ -102,6 +105,12 @@ abstract class LayoutManager {
   /// 用于计算滚动距离和滚动进度。
   /// 对于横向滚动，这是 itemWidth；对于纵向滚动，这是 itemHeight。
   double get itemExtent;
+
+  /// 注册监听器，每次 performLayout 后回调
+  void addListener(OnItemBoundsChanged listener);
+
+  /// 移除监听器
+  void removeListener(OnItemBoundsChanged listener);
 }
 
 /// 带 CustomScrollView 的完整堆叠列表组件
@@ -270,8 +279,10 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   final Map<int, LayoutParams> _layoutParamsCache = {};
 
   /// LayoutParams 的 ValueNotifier 缓存
-  /// key: item index, value: ValueNotifier<LayoutParams>
   final Map<int, ValueNotifier<LayoutParams>> _layoutParamsNotifiers = {};
+
+  /// itemBounds 监听器列表
+  final List<OnItemBoundsChanged> _itemBoundsListeners = [];
 
   LayoutAlgorithm _layoutAlgorithm;
   LayoutAlgorithm get layoutAlgorithm => _layoutAlgorithm;
@@ -335,6 +346,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   void dispose() {
     super.dispose();
     layoutManagerHolder.detach();
+    _itemBoundsListeners.clear();
     // 释放所有 notifier
     for (final notifier in _layoutParamsNotifiers.values) {
       notifier.dispose();
@@ -474,6 +486,16 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   }
 
   @override
+  void addListener(OnItemBoundsChanged listener) {
+    _itemBoundsListeners.add(listener);
+  }
+
+  @override
+  void removeListener(OnItemBoundsChanged listener) {
+    _itemBoundsListeners.remove(listener);
+  }
+
+  @override
   double childCrossAxisPosition(RenderBox child) {
     final childParentData = child.parentData as SliverMultiBoxAdaptorParentData;
     final index = childParentData.index;
@@ -547,7 +569,36 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     // 延迟更新 notifier，避免在布局期间触发 setState
     SchedulerBinding.instance.addPostFrameCallback((_) {
       _updateVisibleNotifiers();
+      _notifyItemBoundsChanged();
     });
+  }
+
+  /// 计算所有 item 的占用空间（包含 edgeSpacing，不含 padding），通知监听器
+  void _notifyItemBoundsChanged() {
+    if (_itemBoundsListeners.isEmpty) return;
+    if (itemCount == 0) {
+      final empty = Rect.zero;
+      for (final l in _itemBoundsListeners) { l(empty); }
+      return;
+    }
+
+    // 用 scrollOffset=0 计算首尾 item 的位置，得到静态布局范围
+    final first = getLayoutParamsForPosition(index: 0, scrollOffset: 0);
+    final last = getLayoutParamsForPosition(
+      index: itemCount - 1,
+      scrollOffset: 0,
+    );
+
+    // 加上 edgeSpacing
+    final edge = edgeSpacing.resolve(textDirection);
+    final bounds = Rect.fromLTRB(
+      first.rect.left - edge.left,
+      first.rect.top - edge.top,
+      last.rect.right + edge.right,
+      last.rect.bottom + edge.bottom,
+    );
+
+    for (final l in _itemBoundsListeners) { l(bounds); }
   }
 
   /// 更新可见 item 的 LayoutParams notifier
