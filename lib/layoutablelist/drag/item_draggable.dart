@@ -1,7 +1,62 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../animator/item_animator.dart';
+import '../animator/animation_widget.dart';
 import 'drag_gesture_detector.dart';
+
+/// 拖拽位移阈值配置
+///
+/// [min] 负方向最大位移，double.negativeInfinity 表示不限制
+/// [max] 正方向最大位移，double.infinity 表示不限制
+/// [dampingFraction] 阻尼起始位置占 min/max 的比例（0~1），
+///   例如 0.5 表示从 max*0.5 处开始施加阻尼，默认 0.5
+///
+/// 快到阈值时会产生阻尼效果（rubber band），越接近阈值阻力越大。
+class DragThreshold {
+  final double min;
+  final double max;
+  final double dampingFraction;
+
+  const DragThreshold({
+    this.min = double.negativeInfinity,
+    this.max = double.infinity,
+    this.dampingFraction = 0.5,
+  });
+
+  /// 对原始 delta 施加阻尼，返回实际应用的 delta
+  double applyDamping(double current, double delta) {
+    final next = current + delta;
+
+    // 超出上限
+    if (next > max) {
+      return _rubberBand(current, delta, max).clamp(double.negativeInfinity, max - current);
+    }
+    // 超出下限
+    if (next < min) {
+      return _rubberBand(current, delta, min).clamp(min - current, double.infinity);
+    }
+    // 进入上限阻尼区间
+    if (max != double.infinity && next > max * dampingFraction) {
+      return _rubberBand(current, delta, max);
+    }
+    // 进入下限阻尼区间（min 是负数，乘以 fraction 后绝对值变小，即更靠近 0）
+    if (min != double.negativeInfinity && next < min * dampingFraction) {
+      return _rubberBand(current, delta, min);
+    }
+
+    return delta;
+  }
+
+  /// rubber band 阻尼：从 limit*dampingFraction 到 limit 线性衰减至 0
+  double _rubberBand(double current, double delta, double limit) {
+    final start = limit * dampingFraction;
+    final range = (limit - start).abs(); // 阻尼区间长度
+    if (range <= 0) return 0;
+    final distToLimit = (limit - current).abs();
+    final resistance = (distToLimit / range).clamp(0.0, 1.0);
+    return delta * resistance;
+  }
+}
 
 /// Swipe 触发阈值配置
 class SwipeThreshold {
@@ -55,10 +110,13 @@ class Swipe extends DragResult {
 }
 
 /// 拖拽状态监听器
-abstract class ItemDragListener {
-  void onDragStart(String itemId);
-  void onDragMove(String itemId, Offset offset);
-  void onDragEnd(String itemId, DragResult result);
+mixin ItemDragListener {
+  void onDragStart(String itemId) {}
+  void onDragMove(String itemId, Offset offset) {}
+  /// 返回 false 时，即使 result 是 Swipe 也会执行 snapback
+  bool onDragEnd(String itemId, DragResult result) => true;
+  /// snapback 动画结束回调（可选覆盖）
+  void onSnapBackEnd(String itemId) {}
 }
 
 /// Item 拖拽组件
@@ -89,12 +147,12 @@ class ItemDraggable extends StatefulWidget {
   /// Swipe 触发阈值
   final SwipeThreshold swipeThreshold;
   
-  /// 回弹动画时长
-  final Duration snapBackDuration;
+  /// 回弹动画配置
+  final CurveConfig snapBackConfig;
   
-  /// 回弹动画曲线
-  final Curve snapBackCurve;
-  
+  /// 拖拽位移阈值（含阻尼效果）
+  final DragThreshold dragThreshold;
+
   /// 拖拽手势设置
   /// 
   /// 可以通过设置 touchSlop 来控制拖拽触发的灵敏度：
@@ -117,8 +175,8 @@ class ItemDraggable extends StatefulWidget {
     required this.child,
     this.listener,
     this.swipeThreshold = const SwipeThreshold(),
-    this.snapBackDuration = const Duration(milliseconds: 600),  // 增加到 600ms
-    this.snapBackCurve = Curves.easeOutBack,  // 使用带轻微回弹的曲线
+    this.snapBackConfig = const CurveConfig(curve: Curves.easeOutBack, durationMs: 600),
+    this.dragThreshold = const DragThreshold(),
     this.dragGestureSettings,
   });
 
@@ -149,7 +207,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
     if (widget.paramsNotifier == null) {
       _snapBackController = AnimationController(
         vsync: this,
-        duration: widget.snapBackDuration,
+        duration: Duration(milliseconds: widget.snapBackConfig.durationMs),
       );
     }
   }
@@ -222,8 +280,9 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
   void _handleDragUpdate(DragUpdateDetails details) {
     if (!_isDragging) return;
     
-    // 计算交叉轴方向的偏移增量
-    final delta = _getCrossAxisDelta(details.delta);
+    // 计算交叉轴方向的偏移增量（施加阻尼）
+    final rawDelta = _getCrossAxisDelta(details.delta);
+    final delta = _applyThresholdDamping(rawDelta);
     
     if (widget.paramsNotifier != null) {
       // 模式 1：offset 和 toOffset 相同，不触发动画
@@ -276,14 +335,17 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
           velocity: velocity,
           offset: currentOffset,
         );
-        widget.listener?.onDragEnd(widget.itemId, result);
+        final accepted = widget.listener?.onDragEnd(widget.itemId, result) ?? true;
+        if (!accepted) {
+          _snapBack(velocity: velocity.abs());
+        }
       } else {
-        // 方向不一致，回弹（传入速度）
+        // 方向不一致，回弹
         _snapBack(velocity: velocity.abs());
         widget.listener?.onDragEnd(widget.itemId, const SnapBack());
       }
     } else {
-      // 未达到阈值，回弹（传入速度）
+      // 未达到阈值，回弹
       _snapBack(velocity: velocity.abs());
       widget.listener?.onDragEnd(widget.itemId, const SnapBack());
     }
@@ -315,7 +377,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
       
       _mode1SnapBackController = AnimationController(
         vsync: this,
-        duration: widget.snapBackDuration,
+        duration: Duration(milliseconds: widget.snapBackConfig.durationMs),
       );
       
       _mode1SnapBackAnimation = Tween<Offset>(
@@ -323,7 +385,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
         end: Offset.zero,
       ).animate(CurvedAnimation(
         parent: _mode1SnapBackController!,
-        curve: widget.snapBackCurve,
+        curve: widget.snapBackConfig.curve,
       ));
       
       _mode1SnapBackAnimation!.addListener(() {
@@ -343,6 +405,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
             _mode1SnapBackController?.dispose();
             _mode1SnapBackController = null;
             _mode1SnapBackAnimation = null;
+            widget.listener?.onSnapBackEnd(widget.itemId);
           }
         }
       });
@@ -369,7 +432,7 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
         end: Offset.zero,
       ).animate(CurvedAnimation(
         parent: _snapBackController!,
-        curve: widget.snapBackCurve,
+        curve: widget.snapBackConfig.curve,
       ));
       
       // 使用 fling 启动动画，传入初速度
@@ -385,8 +448,21 @@ class _ItemDraggableState extends State<ItemDraggable> with TickerProviderStateM
             _currentOffset = Offset.zero;
             _snapBackAnimation = null;
           });
+          widget.listener?.onSnapBackEnd(widget.itemId);
         }
       });
+    }
+  }
+
+  /// 对交叉轴 delta 施加阻尼
+  Offset _applyThresholdDamping(Offset rawDelta) {
+    final current = widget.paramsNotifier?.value.offset ?? _currentOffset;
+    if (widget.scrollDirection == Axis.horizontal) {
+      final dampedDy = widget.dragThreshold.applyDamping(current.dy, rawDelta.dy);
+      return Offset(0, dampedDy);
+    } else {
+      final dampedDx = widget.dragThreshold.applyDamping(current.dx, rawDelta.dx);
+      return Offset(dampedDx, 0);
     }
   }
 

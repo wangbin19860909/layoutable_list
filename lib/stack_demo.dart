@@ -19,7 +19,7 @@ class StackDemo extends StatefulWidget {
   State<StackDemo> createState() => _StackDemoState();
 }
 
-class _StackDemoState extends State<StackDemo> implements ItemDragListener {
+class _StackDemoState extends State<StackDemo> with ItemDragListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
   late ItemAnimatorController _animatorController;
@@ -27,6 +27,9 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   
   // 追踪新添加的 item，用于执行添加动画
   final Set<String> _newItemIds = {};
+
+  // 当前拖拽中的 item index，-1 表示无拖拽
+  int _draggingIndex = -1;
 
   // 左右 padding，三档循环：zero → left → right → zero
   int _paddingStep = 0;
@@ -146,20 +149,30 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
   }
 
   @override
-  void onDragStart(String itemId) {}
+  void onDragStart(String itemId) {
+    final index = _adapter.findChildIndex(itemId);
+    if (index != null) {
+      setState(() => _draggingIndex = index);
+    }
+  }
 
   @override
   void onDragMove(String itemId, Offset offset) {}
 
   @override
-  void onDragEnd(String itemId, DragResult result) {
+  void onSnapBackEnd(String itemId) {
+    setState(() => _draggingIndex = -1);
+  }
+
+  @override
+  bool onDragEnd(String itemId, DragResult result) {
     switch (result) {
       case SnapBack():
-        // 回弹，不做处理
-        break;
+        // 回弹，不做处理（topMost 在 onSnapBackEnd 里还原）
+        return true;
         
       case Swipe(:final direction):
-        // 根据方向删除 item
+        setState(() => _draggingIndex = -1);
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
           final index = _adapter.findChildIndex(itemId);
           if (index != null) {
@@ -177,7 +190,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
             ),
           );
         }
-        break;
+        return true;
     }
   }
 
@@ -205,7 +218,7 @@ class _StackDemoState extends State<StackDemo> implements ItemDragListener {
         itemSize: Size(itemWidth, itemHeight),
         scrollDirection: Axis.horizontal,
         reverseLayout: false,
-        reversePaint: true,
+        paintConfig: PaintConfig(reverse: true, topMostIndex: _draggingIndex),
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 300,
         physics: StackSnapScrollPhysics(layoutManager: _layoutManagerHolder),

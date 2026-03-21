@@ -3,6 +3,7 @@ import 'stack_demo.dart';
 import 'grid_demo.dart';
 import 'animation_demo.dart';
 import 'flex_demo.dart';
+import 'layout_animation_demo.dart';
 
 void main() => runApp(const MyApp());
 
@@ -70,6 +71,20 @@ class DemoListScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const FlexDemo()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: '补位动画 Demo',
+            description: 'add / remove / move / swap / reverse',
+            icon: Icons.swap_horiz,
+            color: Colors.teal,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LayoutAnimationDemo()),
               );
             },
           ),

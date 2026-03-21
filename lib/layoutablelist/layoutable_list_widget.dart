@@ -7,6 +7,29 @@ import 'package:flutter_multi_window/service_holder.dart';
 import 'base/custom_sliver_fixed_extent_base.dart';
 import 'algorithms/layout_algorithm.dart';
 
+/// 绘制配置
+///
+/// [reverse] 对应原来的 reversePaint：true 时 index 大的先绘制（在下层）。
+/// [topMostIndex] 不为 -1 时，该 index 的 child 最后绘制（显示在最上层）。
+class PaintConfig {
+  final bool reverse;
+  final int topMostIndex;
+
+  const PaintConfig({
+    this.reverse = false,
+    this.topMostIndex = -1,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is PaintConfig &&
+      other.reverse == reverse &&
+      other.topMostIndex == topMostIndex;
+
+  @override
+  int get hashCode => Object.hash(reverse, topMostIndex);
+}
+
 /// 布局管理器接口
 ///
 /// 提供布局相关的查询接口，供外部组件（如 ScrollPhysics）使用。
@@ -149,9 +172,8 @@ class LayoutableListWidget extends StatelessWidget {
   /// item 间距（主轴方向 width，交叉轴方向 height）
   final Size itemSpacing;
 
-  /// 是否反转绘制顺序（true: index 大的先绘制在下层；false: index 小的先绘制在下层）
-  /// Stack 布局通常需要 true，让后面的卡片先绘制（在下层）
-  final bool reversePaint;
+  /// 绘制配置（顺序、topMost 等）
+  final PaintConfig paintConfig;
 
   const LayoutableListWidget({
     super.key,
@@ -167,7 +189,7 @@ class LayoutableListWidget extends StatelessWidget {
     this.cacheExtent = 250.0,
     this.edgeSpacing = EdgeInsets.zero,
     this.itemSpacing = Size.zero,
-    this.reversePaint = false,
+    this.paintConfig = const PaintConfig(),
   });
 
   @override
@@ -188,7 +210,7 @@ class LayoutableListWidget extends StatelessWidget {
           layoutManagerHolder: layoutManagerHolder,
           layoutAlgorithm: layoutAlgorithm,
           cacheExtent: cacheExtent,
-          reversePaint: reversePaint,
+          paintConfig: paintConfig,
         ),
       ],
     );
@@ -217,8 +239,8 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
   /// 缓存区域大小（默认 250.0）
   final double cacheExtent;
 
-  /// 是否反转绘制顺序
-  final bool reversePaint;
+  /// 绘制配置
+  final PaintConfig paintConfig;
 
   const LayoutableSliverList({
     super.key,
@@ -230,7 +252,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
     this.edgeSpacing = EdgeInsets.zero,
     this.itemSpacing = Size.zero,
     this.cacheExtent = 250.0,
-    this.reversePaint = true,
+    this.paintConfig = const PaintConfig(),
   });
 
   @override
@@ -246,7 +268,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
       layoutAlgorithm: layoutAlgorithm,
       textDirection: Directionality.of(context),
       cacheExtent: cacheExtent,
-      reversePaint: reversePaint,
+      paintConfig: paintConfig,
     );
   }
 
@@ -263,7 +285,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
       ..layoutAlgorithm = layoutAlgorithm
       ..textDirection = Directionality.of(context)
       ..cacheExtent = cacheExtent
-      ..reversePaint = reversePaint;
+      ..paintConfig = paintConfig;
   }
 
   @override
@@ -310,11 +332,11 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     markNeedsLayout();
   }
 
-  bool _reversePaint;
-  bool get reversePaint => _reversePaint;
-  set reversePaint(bool value) {
-    if (_reversePaint == value) return;
-    _reversePaint = value;
+  PaintConfig _paintConfig;
+  PaintConfig get paintConfig => _paintConfig;
+  set paintConfig(PaintConfig value) {
+    if (_paintConfig == value) return;
+    _paintConfig = value;
     markNeedsPaint();
   }
 
@@ -328,7 +350,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     required Size itemSpacing,
     required TextDirection textDirection,
     required double cacheExtent,
-    bool reversePaint = true,
+    PaintConfig paintConfig = const PaintConfig(),
   }) : _layoutAlgorithm = layoutAlgorithm,
        _itemSize = itemSize,
        _padding = padding,
@@ -336,7 +358,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
        _itemSpacing = itemSpacing,
        _textDirection = textDirection,
        _cacheExtent = cacheExtent,
-       _reversePaint = reversePaint {
+       _paintConfig = paintConfig {
     layoutManagerHolder.attach(this);
     // 将缓存传递给算法
     _layoutAlgorithm.setLayoutParamsCache(_layoutParamsCache);
@@ -560,6 +582,8 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     return computeMaxScrollOffset(constraints, itemExtent);
   }
 
+  bool _postFrameCallbackScheduled = false;
+
   @override
   void performLayout() {
     // 清除缓存，因为 scrollOffset 可能已经改变
@@ -567,10 +591,15 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     super.performLayout();
 
     // 延迟更新 notifier，避免在布局期间触发 setState
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _updateVisibleNotifiers();
-      _notifyItemBoundsChanged();
-    });
+    // 用 flag 去重，一帧内多次 layout 只注册一次回调
+    if (!_postFrameCallbackScheduled) {
+      _postFrameCallbackScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _postFrameCallbackScheduled = false;
+        _updateVisibleNotifiers();
+        _notifyItemBoundsChanged();
+      });
+    }
   }
 
   /// 计算所有 item 的占用空间（包含 edgeSpacing，不含 padding），通知监听器
@@ -696,21 +725,42 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     required double mainAxisPosition,
     required double crossAxisPosition,
   }) {
-    // hitTest 顺序与 paint 相反：paint 先画的在下层，后画的在上层响应事件优先
-    // reversePaint=true 时 paint 从 lastChild→firstChild，hitTest 从 firstChild→lastChild
-    // reversePaint=false 时 paint 从 firstChild→lastChild，hitTest 从 lastChild→firstChild
-    RenderBox? child = _reversePaint ? firstChild : lastChild;
+    // hitTest 顺序与 paint 相反：paint 最后画的在最上层，优先响应事件
+    // topMostIndex 不为 -1 时，该 child 最后绘制（最上层），hitTest 时最先检测
     final BoxHitTestResult boxResult = BoxHitTestResult.wrap(result);
-    while (child != null) {
-      if (hitTestBoxChild(
-        boxResult,
-        child,
-        mainAxisPosition: mainAxisPosition,
-        crossAxisPosition: crossAxisPosition,
-      )) {
-        return true;
+    final topMostIndex = _paintConfig.topMostIndex;
+
+    // 先检测 topMostIndex（最上层）
+    if (topMostIndex != -1) {
+      RenderBox? child = firstChild;
+      while (child != null) {
+        final childParentData = child.parentData as SliverMultiBoxAdaptorParentData;
+        if (childParentData.index == topMostIndex) {
+          if (hitTestBoxChild(boxResult, child,
+              mainAxisPosition: mainAxisPosition,
+              crossAxisPosition: crossAxisPosition)) {
+            return true;
+          }
+          break;
+        }
+        child = childAfter(child);
       }
-      child = _reversePaint ? childAfter(child) : childBefore(child);
+    }
+
+    // 再按 paint 逆序检测其余 child
+    // reverse=true 时 paint 从 lastChild→firstChild（跳过 topMost），hitTest 从 firstChild→lastChild
+    // reverse=false 时 paint 从 firstChild→lastChild（跳过 topMost），hitTest 从 lastChild→firstChild
+    RenderBox? child = _paintConfig.reverse ? firstChild : lastChild;
+    while (child != null) {
+      final childParentData = child.parentData as SliverMultiBoxAdaptorParentData;
+      if (childParentData.index != topMostIndex) {
+        if (hitTestBoxChild(boxResult, child,
+            mainAxisPosition: mainAxisPosition,
+            crossAxisPosition: crossAxisPosition)) {
+          return true;
+        }
+      }
+      child = _paintConfig.reverse ? childAfter(child) : childBefore(child);
     }
     return false;
   }
@@ -719,16 +769,28 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   void paint(PaintingContext context, Offset offset) {
     if (firstChild == null) return;
 
-    // reversePaint=true: 从 lastChild 开始（index 大的先画，在下层）
-    // reversePaint=false: 从 firstChild 开始（index 小的先画，在下层）
-    RenderBox? child = _reversePaint ? lastChild : firstChild;
+    final topMostIndex = _paintConfig.topMostIndex;
+    RenderBox? topMostChild;
+
+    // 按 reverse 顺序绘制所有非 topMostIndex 的 child
+    RenderBox? child = _paintConfig.reverse ? lastChild : firstChild;
     while (child != null) {
-      final childParentData =
-          child.parentData as SliverMultiBoxAdaptorParentData;
+      final childParentData = child.parentData as SliverMultiBoxAdaptorParentData;
       final index = childParentData.index!;
-      final params = _getLayoutForPosition(index);
-      context.paintChild(child, Offset(params.rect.left, params.rect.top));
-      child = _reversePaint ? childBefore(child) : childAfter(child);
+      if (index == topMostIndex) {
+        topMostChild = child;
+      } else {
+        final params = _getLayoutForPosition(index);
+        context.paintChild(child, Offset(params.rect.left, params.rect.top));
+      }
+      child = _paintConfig.reverse ? childBefore(child) : childAfter(child);
+    }
+
+    // 最后绘制 topMostIndex（显示在最上层）
+    if (topMostChild != null) {
+      final childParentData = topMostChild.parentData as SliverMultiBoxAdaptorParentData;
+      final params = _getLayoutForPosition(childParentData.index!);
+      context.paintChild(topMostChild, Offset(params.rect.left, params.rect.top));
     }
   }
 }

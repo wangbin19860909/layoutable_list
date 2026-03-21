@@ -208,6 +208,7 @@ class ItemAnimatorController extends ChangeNotifier {
     required ListAdapter adapter,
     List<int> addIndexes = const [],
     List<int> removeIndexes = const [],
+    Map<String, int> moveIndexes = const {},
     EdgeInsetsGeometry? padding,
     Size? itemSize,
     double? scrollOffset,
@@ -217,8 +218,7 @@ class ItemAnimatorController extends ChangeNotifier {
     bool refreshAfterAnimation = false,
   }) {
     final oldItemCount = adapter.itemCount;
-    final newItemCount =
-        oldItemCount - removeIndexes.length + addIndexes.length;
+    final newItemCount = oldItemCount - removeIndexes.length + addIndexes.length;
     final currentScrollOffset = scrollOffset ?? layoutManager.scrollOffset;
 
     // 当 item 减少时，预测 ScrollView 会调整到的新 scrollOffset
@@ -242,12 +242,19 @@ class ItemAnimatorController extends ChangeNotifier {
 
       if (removeIndexSet.contains(oldIndex)) continue;
 
-      int newIndex = oldIndex;
-      for (final ri in removeIndexes) {
-        if (ri < oldIndex) newIndex--;
-      }
-      for (final ai in addIndexes) {
-        if (ai <= newIndex) newIndex++;
+      int newIndex;
+      if (moveIndexes.containsKey(itemId)) {
+        // moveIndexes 直接指定 newIndex
+        newIndex = moveIndexes[itemId]!;
+      } else {
+        // 原有推算逻辑
+        newIndex = oldIndex;
+        for (final ri in removeIndexes) {
+          if (ri < oldIndex) newIndex--;
+        }
+        for (final ai in addIndexes) {
+          if (ai <= newIndex) newIndex++;
+        }
       }
 
       final origLayoutParams = layoutManager.getLayoutParamsForPosition(

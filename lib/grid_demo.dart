@@ -18,7 +18,7 @@ class GridDemo extends StatefulWidget {
   State<GridDemo> createState() => _GridDemoState();
 }
 
-class _GridDemoState extends State<GridDemo> implements ItemDragListener {
+class _GridDemoState extends State<GridDemo> with ItemDragListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
   late ItemAnimatorController _animatorController;
@@ -148,11 +148,11 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
   void onDragMove(String itemId, Offset offset) {}
 
   @override
-  void onDragEnd(String itemId, DragResult result) {
+  bool onDragEnd(String itemId, DragResult result) {
     switch (result) {
       case SnapBack():
         // 回弹，不做任何操作
-        break;
+        return true;
         
       case Swipe(:final direction):
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
@@ -172,7 +172,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
             ),
           );
         }
-        break;
+        return true;
     }
   }
 
@@ -228,6 +228,7 @@ class _GridDemoState extends State<GridDemo> implements ItemDragListener {
                     velocityThreshold: 800.0,
                     offsetThreshold: 300.0,
                   ),
+                  dragThreshold: const DragThreshold(min: -150, max: 150),
                   dragGestureSettings: const DeviceGestureSettings(
                     touchSlop: 30.0,
                   ),
