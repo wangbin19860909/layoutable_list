@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_multi_window/recents/algorithms/stack_layout_algorithm.dart';
-import 'package:flutter_multi_window/recents/algorithms/layout_algorithm.dart';
+import 'package:flutter_multi_window/layoutablelist/algorithms/stack_layout_algorithm.dart';
+import 'package:flutter_multi_window/layoutablelist/algorithms/layout_algorithm.dart';
 
 LayoutParams getParams(
   StackLayoutAlgorithm algo, {

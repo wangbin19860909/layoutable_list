@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../utils/logger.dart';
+import 'logger.dart';
 
 /// 列表适配器
 ///
@@ -26,7 +26,7 @@ class ListAdapter<T> extends ChangeNotifier {
 
   int get itemCount => _items.length;
 
-  int findChildIndex(String itemId) => _idToIndexMap[itemId] ?? -1;
+  int? findChildIndex(String itemId) => _idToIndexMap[itemId];
 
   String getItemId(int index) {
     if (index < 0 || index >= _items.length) {
@@ -71,5 +71,16 @@ class ListAdapter<T> extends ChangeNotifier {
     _log.d('removeAt $index, count=${_items.length}');
     notifyListeners();
     return true;
+  }
+
+  /// 替换指定位置的 item，不触发 add/remove 动画
+  void replaceAt(int index, T newItem) {
+    if (index < 0 || index >= _items.length) {
+      throw RangeError('Index $index out of range');
+    }
+    _items[index] = newItem;
+    _rebuildIndexMap();
+    _log.d('replaceAt $index, count=${_items.length}');
+    notifyListeners();
   }
 }

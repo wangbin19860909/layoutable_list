@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../service_holder.dart';
-import '../../utils/logger.dart';
+import '../logger.dart';
 import '../layoutable_list_widget.dart';
 import 'animation_widget.dart';
 import 'item_animator.dart';
-import 'list_adapter.dart';
+import '../list_adapter.dart';
 
 /// 动画中断器，支持提前触发 onComplete
 abstract class AnimationInterrupter {
@@ -238,7 +238,7 @@ class ItemAnimatorController extends ChangeNotifier {
       if (notifier == null || !notifier.hasListeners) continue;
 
       final oldIndex = adapter.findChildIndex(itemId);
-      if (oldIndex == -1) continue;
+      if (oldIndex == null) continue;
 
       if (removeIndexSet.contains(oldIndex)) continue;
 

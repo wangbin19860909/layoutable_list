@@ -35,36 +35,19 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
 
   // ── 从 edgeSpacing / itemSpacing 提取各方向间距 ──────────────────────────
 
-  /// 主轴方向 item 间距
-  double _mainAxisSpacing(Size itemSpacing) =>
-      scrollDirection == Axis.horizontal ? itemSpacing.width : itemSpacing.height;
+  /// 将 itemSpacing 拆分为主轴 / 交叉轴间距
+  ({double main, double cross}) _resolveItemSpacing(Size itemSpacing) =>
+      scrollDirection == Axis.horizontal
+          ? (main: itemSpacing.width, cross: itemSpacing.height)
+          : (main: itemSpacing.height, cross: itemSpacing.width);
 
-  /// 交叉轴方向 item 间距
-  double _crossAxisSpacing(Size itemSpacing) =>
-      scrollDirection == Axis.horizontal ? itemSpacing.height : itemSpacing.width;
-
-  /// 主轴方向边缘间距（起始侧）
-  double _mainAxisEdgeStart(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
-    final r = edgeSpacing.resolve(textDirection);
-    return scrollDirection == Axis.horizontal ? r.left : r.top;
-  }
-
-  /// 主轴方向边缘间距（末尾侧，用于 computeMaxScrollOffset）
-  double _mainAxisEdgeEnd(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
-    final r = edgeSpacing.resolve(textDirection);
-    return scrollDirection == Axis.horizontal ? r.right : r.bottom;
-  }
-
-  /// 交叉轴方向边缘间距（起始侧）
-  double _crossAxisEdgeStart(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
-    final r = edgeSpacing.resolve(textDirection);
-    return scrollDirection == Axis.horizontal ? r.top : r.left;
-  }
-
-  /// 交叉轴方向边缘间距（末尾侧）
-  double _crossAxisEdgeEnd(EdgeInsetsGeometry edgeSpacing, TextDirection textDirection) {
-    final r = edgeSpacing.resolve(textDirection);
-    return scrollDirection == Axis.horizontal ? r.bottom : r.right;
+  /// 一次性解析 edgeSpacing 的四个方向间距
+  ({double mainStart, double mainEnd, double crossStart, double crossEnd})
+      _resolveEdgeSpacing(EdgeInsetsGeometry edgeSpacing, TextDirection td) {
+    final r = edgeSpacing.resolve(td);
+    return scrollDirection == Axis.horizontal
+        ? (mainStart: r.left, mainEnd: r.right, crossStart: r.top, crossEnd: r.bottom)
+        : (mainStart: r.top, mainEnd: r.bottom, crossStart: r.left, crossEnd: r.right);
   }
 
 
@@ -88,12 +71,11 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   }) {
     if (itemCount == 0) return 0.0;
 
-    final double mainSpacing = _mainAxisSpacing(itemSpacing);
-    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, TextDirection.ltr);
-    final double edgeEnd = _mainAxisEdgeEnd(edgeSpacing, TextDirection.ltr);
+    final spacing = _resolveItemSpacing(itemSpacing);
+    final edge = _resolveEdgeSpacing(edgeSpacing, TextDirection.ltr);
 
     final int lastMainAxisIndex = (itemCount - 1) ~/ spanCount;
-    return edgeStart + lastMainAxisIndex * (itemExtent + mainSpacing) + itemExtent + edgeEnd;
+    return edge.mainStart + lastMainAxisIndex * (itemExtent + spacing.main) + itemExtent + edge.mainEnd;
   }
 
   @override
@@ -159,21 +141,18 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     final int row = index ~/ spanCount;
     final int column = index % spanCount;
 
-    final double crossSpacing = _crossAxisSpacing(itemSpacing);
-    final double mainSpacing = _mainAxisSpacing(itemSpacing);
-    final double crossEdgeStart = _crossAxisEdgeStart(edgeSpacing, textDirection);
-    final double crossEdgeEnd = _crossAxisEdgeEnd(edgeSpacing, textDirection);
-    final double mainEdgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
+    final spacing = _resolveItemSpacing(itemSpacing);
+    final edge = _resolveEdgeSpacing(edgeSpacing, textDirection);
 
-    final double totalCrossSpacing = crossSpacing * (spanCount - 1);
+    final double totalCrossSpacing = spacing.cross * (spanCount - 1);
     final double availableWidth =
-        containerWidth - totalCrossSpacing - crossEdgeStart - crossEdgeEnd;
+        containerWidth - totalCrossSpacing - edge.crossStart - edge.crossEnd;
     final double cellWidth = availableWidth / spanCount;
 
     final double left =
-        resolvedPadding.left + crossEdgeStart + column * (cellWidth + crossSpacing);
+        resolvedPadding.left + edge.crossStart + column * (cellWidth + spacing.cross);
     final double top =
-        resolvedPadding.top + mainEdgeStart + row * (itemExtent + mainSpacing) - scrollOffset;
+        resolvedPadding.top + edge.mainStart + row * (itemExtent + spacing.main) - scrollOffset;
 
     return LayoutParams(
       rect: Rect.fromLTWH(left, top, cellWidth, itemExtent),
@@ -199,21 +178,18 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     final int column = index ~/ spanCount;
     final int row = index % spanCount;
 
-    final double crossSpacing = _crossAxisSpacing(itemSpacing);
-    final double mainSpacing = _mainAxisSpacing(itemSpacing);
-    final double crossEdgeStart = _crossAxisEdgeStart(edgeSpacing, textDirection);
-    final double crossEdgeEnd = _crossAxisEdgeEnd(edgeSpacing, textDirection);
-    final double mainEdgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
+    final spacing = _resolveItemSpacing(itemSpacing);
+    final edge = _resolveEdgeSpacing(edgeSpacing, textDirection);
 
-    final double totalCrossSpacing = crossSpacing * (spanCount - 1);
+    final double totalCrossSpacing = spacing.cross * (spanCount - 1);
     final double availableHeight =
-        containerHeight - totalCrossSpacing - crossEdgeStart - crossEdgeEnd;
+        containerHeight - totalCrossSpacing - edge.crossStart - edge.crossEnd;
     final double cellHeight = availableHeight / spanCount;
 
     final double left =
-        resolvedPadding.left + mainEdgeStart + column * (itemExtent + mainSpacing) - scrollOffset;
+        resolvedPadding.left + edge.mainStart + column * (itemExtent + spacing.main) - scrollOffset;
     final double top =
-        resolvedPadding.top + crossEdgeStart + row * (cellHeight + crossSpacing);
+        resolvedPadding.top + edge.crossStart + row * (cellHeight + spacing.cross);
 
     return LayoutParams(
       rect: Rect.fromLTWH(left, top, itemExtent, cellHeight),
@@ -244,8 +220,8 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     if (itemCount == 0) return 0;
     final double itemExtent =
         scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
-    final double mainSpacing = _mainAxisSpacing(itemSpacing);
-    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
+    final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
+    final double edgeStart = _resolveEdgeSpacing(edgeSpacing, textDirection).mainStart;
     final resolvedPadding = padding.resolve(textDirection);
     final double paddingStart =
         scrollDirection == Axis.vertical ? resolvedPadding.top : resolvedPadding.left;
@@ -282,8 +258,8 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     if (itemCount == 0) return 0;
     final double itemExtent =
         scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
-    final double mainSpacing = _mainAxisSpacing(itemSpacing);
-    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, textDirection);
+    final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
+    final double edgeStart = _resolveEdgeSpacing(edgeSpacing, textDirection).mainStart;
     final resolvedPadding = padding.resolve(textDirection);
     final double paddingStart =
         scrollDirection == Axis.vertical ? resolvedPadding.top : resolvedPadding.left;
@@ -314,8 +290,8 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   }) {
-    final double mainSpacing = _mainAxisSpacing(itemSpacing);
-    final double edgeStart = _mainAxisEdgeStart(edgeSpacing, TextDirection.ltr);
+    final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
+    final double edgeStart = _resolveEdgeSpacing(edgeSpacing, TextDirection.ltr).mainStart;
     final int mainAxisIndex = index ~/ spanCount;
     return edgeStart + mainAxisIndex * (itemExtent + mainSpacing);
   }

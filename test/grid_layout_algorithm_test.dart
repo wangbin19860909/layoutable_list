@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_multi_window/recents/algorithms/grid_layout_algorithm.dart';
-import 'package:flutter_multi_window/recents/algorithms/layout_algorithm.dart';
+import 'package:flutter_multi_window/layoutablelist/algorithms/grid_layout_algorithm.dart';
+import 'package:flutter_multi_window/layoutablelist/algorithms/layout_algorithm.dart';
 
 // 辅助方法，减少重复参数
 LayoutParams getParams(

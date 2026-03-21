@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import '../algorithms/layout_algorithm.dart';
-import '../../utils/logger.dart';
+import '../logger.dart';
 import 'animation_widget.dart';
 import 'item_animator.dart';
 

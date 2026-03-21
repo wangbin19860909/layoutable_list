@@ -1,14 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'service_holder.dart';
-import 'recents/layoutable_list_widget.dart';
-import 'recents/algorithms/stack_layout_algorithm.dart';
-import 'recents/animator/list_adapter.dart';
-import 'recents/animator/item_animator.dart';
-import 'recents/animator/item_animator_controller.dart';
-import 'recents/animator/animation_widget.dart';
-import 'recents/physics/stack_scroll_physics.dart';
-import 'recents/drag/item_draggable.dart';
+import 'layoutablelist/layoutable_list_widget.dart';
+import 'layoutablelist/algorithms/stack_layout_algorithm.dart';
+import 'layoutablelist/list_adapter.dart';
+import 'layoutablelist/animator/item_animator.dart';
+import 'layoutablelist/animator/item_animator_controller.dart';
+import 'layoutablelist/animator/animation_widget.dart';
+import 'layoutablelist/physics/stack_scroll_physics.dart';
+import 'layoutablelist/drag/item_draggable.dart';
 
 /// 堆叠布局 Demo
 /// 使用 StackLayoutAlgorithm 和 ListAdapter 实现补位动画

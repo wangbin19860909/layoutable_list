@@ -65,6 +65,23 @@ class LayoutParams {
   }
 }
 
+/// 提供 item 的差异化尺寸信息
+///
+/// 用于支持列表中 item 有不同尺寸的场景。
+/// 布局算法在等尺寸计算结果上叠加 provider 提供的差值。
+abstract class ItemSizeProvider {
+  /// 返回 [index] 处 item 的实际尺寸
+  ///
+  /// [defaultSize] 是统一配置的默认尺寸，实现者可据此返回调整后的尺寸。
+  Size sizeOf(int index, Size defaultSize);
+
+  /// 返回 [0, index) 范围内所有 item 相对于等尺寸布局的累积偏移量
+  ///
+  /// 即 sum(actualSize[i] - defaultSize) for i in [0, index)。
+  /// 负值表示实际总尺寸小于等尺寸，正值表示大于。
+  Offset totalOffsetUpTo(int index, Size defaultSize);
+}
+
 /// 布局算法接口
 /// 
 /// 定义了计算 item 布局的核心接口。不同的布局算法（如堆叠、网格）

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_multi_window/recents/animator/list_adapter.dart';
+import 'package:flutter_multi_window/layoutablelist/list_adapter.dart';
 
 void main() {
   group('ListAdapter', () {

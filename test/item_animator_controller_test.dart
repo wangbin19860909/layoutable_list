@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_multi_window/recents/animator/item_animator_controller.dart';
-import 'package:flutter_multi_window/recents/animator/list_adapter.dart';
-import 'package:flutter_multi_window/recents/animator/item_animator.dart';
-import 'package:flutter_multi_window/recents/algorithms/layout_algorithm.dart';
-import 'package:flutter_multi_window/recents/layoutable_list_widget.dart';
+import 'package:flutter_multi_window/layoutablelist/animator/item_animator_controller.dart';
+import 'package:flutter_multi_window/layoutablelist/list_adapter.dart';
+import 'package:flutter_multi_window/layoutablelist/animator/item_animator.dart';
+import 'package:flutter_multi_window/layoutablelist/algorithms/layout_algorithm.dart';
+import 'package:flutter_multi_window/layoutablelist/layoutable_list_widget.dart';
 import 'package:flutter_multi_window/service_holder.dart';
 
 /// Mock LayoutManager — 简单的网格布局，每个 item 宽100，横向排列
@@ -21,6 +21,12 @@ class MockLayoutManager implements LayoutManager {
   })  : _itemExtent = itemExtent,
         _viewportExtent = viewportExtent,
         _scrollOffset = scrollOffset;
+
+  @override
+  void addListener(OnItemBoundsChanged listener) {}
+
+  @override
+  void removeListener(OnItemBoundsChanged listener) {}
 
   @override
   double get scrollOffset => _scrollOffset;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'recents/animator/animation_widget.dart';
+import 'layoutablelist/animator/animation_widget.dart';
 
 class AnimationDemoPage extends StatefulWidget {
   const AnimationDemoPage({super.key});

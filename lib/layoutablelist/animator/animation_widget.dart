@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:math' show sqrt;
 
 import 'package:flutter/physics.dart';
-import '../../utils/logger.dart';
+import '../logger.dart';
 
 /// 弹簧物理配置
 class SpringConfig {

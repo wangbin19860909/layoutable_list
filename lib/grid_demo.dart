@@ -1,13 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'service_holder.dart';
-import 'recents/layoutable_list_widget.dart';
-import 'recents/algorithms/grid_layout_algorithm.dart';
-import 'recents/animator/list_adapter.dart';
-import 'recents/animator/item_animator.dart';
-import 'recents/animator/item_animator_controller.dart';
-import 'recents/animator/animation_widget.dart';
-import 'recents/drag/item_draggable.dart';
+import 'layoutablelist/layoutable_list_widget.dart';
+import 'layoutablelist/algorithms/grid_layout_algorithm.dart';
+import 'layoutablelist/list_adapter.dart';
+import 'layoutablelist/animator/item_animator.dart';
+import 'layoutablelist/animator/item_animator_controller.dart';
+import 'layoutablelist/animator/animation_widget.dart';
+import 'layoutablelist/drag/item_draggable.dart';
 
 /// 网格布局 Demo（横向一行）
 /// 使用 GridLayoutAlgorithm 和 ListAdapter 实现补位动画

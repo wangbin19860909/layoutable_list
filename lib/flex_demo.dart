@@ -1,11 +1,55 @@
 import 'package:flutter/material.dart';
 import 'service_holder.dart';
-import 'recents/layoutable_list_widget.dart';
-import 'recents/algorithms/flex_layout_algorithm.dart';
-import 'recents/animator/list_adapter.dart';
-import 'recents/animator/item_animator.dart';
-import 'recents/animator/item_animator_controller.dart';
-import 'recents/animator/animation_widget.dart';
+import 'layoutablelist/layoutable_list_widget.dart';
+import 'layoutablelist/algorithms/flex_layout_algorithm.dart';
+import 'layoutablelist/algorithms/layout_algorithm.dart';
+import 'layoutablelist/list_adapter.dart';
+import 'layoutablelist/animator/item_animator.dart';
+import 'layoutablelist/animator/item_animator_controller.dart';
+import 'layoutablelist/animator/animation_widget.dart';
+
+/// 分割线使用负数 ID，普通 item 使用非负 ID
+const _dividerId = -1;
+
+bool _isDivider(int id) => id == _dividerId;
+
+/// 为分割线提供不同尺寸的 ItemSizeProvider
+///
+/// 分割线的主轴宽度为 [dividerBaseWidth]，按 defaultSize 与 baseItemSize 的比例缩放。
+/// totalOffsetUpTo 返回 [0, index) 范围内所有尺寸差值的累积。
+class _DividerSizeProvider implements ItemSizeProvider {
+  final ListAdapter<int> adapter;
+  final double dividerBaseWidth;
+  final double baseItemSize;
+
+  _DividerSizeProvider({
+    required this.adapter,
+    required this.dividerBaseWidth,
+    required this.baseItemSize,
+  });
+
+  double _scaledDividerWidth(Size defaultSize) =>
+      dividerBaseWidth * (defaultSize.width / baseItemSize);
+
+  @override
+  Size sizeOf(int index, Size defaultSize) {
+    if (index < adapter.itemCount && _isDivider(adapter.getItem(index))) {
+      return Size(_scaledDividerWidth(defaultSize), defaultSize.height);
+    }
+    return defaultSize;
+  }
+
+  @override
+  Offset totalOffsetUpTo(int index, Size defaultSize) {
+    final delta = _scaledDividerWidth(defaultSize) - defaultSize.width;
+    final count = index.clamp(0, adapter.itemCount);
+    int dividers = 0;
+    for (int i = 0; i < count; i++) {
+      if (_isDivider(adapter.getItem(i))) dividers++;
+    }
+    return Offset(delta * dividers, 0);
+  }
+}
 
 class FlexDemo extends StatefulWidget {
   const FlexDemo({super.key});
@@ -18,6 +62,7 @@ class _FlexDemoState extends State<FlexDemo> {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<int> _adapter;
   late ItemAnimatorController _animatorController;
+  late _DividerSizeProvider _sizeProvider;
   int _nextId = 0;
 
   FlexJustifyContent _justify = FlexJustifyContent.start;
@@ -26,17 +71,32 @@ class _FlexDemoState extends State<FlexDemo> {
   static const _baseItemSize = 80.0;
   static const _baseSpacing = 8.0;
   static const _edgeH = 12.0;
+  static const _dividerWidth = 2.0;
   static const _colors = [
     Colors.red, Colors.orange, Colors.yellow, Colors.green,
     Colors.teal, Colors.blue, Colors.purple, Colors.pink,
   ];
 
+  /// 分割线在 adapter 中的 index（固定为 9）
+  static const _dividerIndex = 9;
+
   @override
   void initState() {
     super.initState();
+    // 生成 10 个普通 item + 1 个分割线 + 3 个普通 item = 14 个
+    final items = <int>[];
+    for (int i = 0; i < 9; i++) items.add(_nextId++);
+    items.add(_dividerId);
+    for (int i = 0; i < 3; i++) items.add(_nextId++);
+
     _adapter = ListAdapter<int>(
-      items: List.generate(5, (i) => _nextId++),
-      idExtractor: (item) => item,
+      items: items,
+      idExtractor: (item) => item == _dividerId ? _dividerId : item,
+    );
+    _sizeProvider = _DividerSizeProvider(
+      adapter: _adapter,
+      dividerBaseWidth: _dividerWidth,
+      baseItemSize: _baseItemSize,
     );
     _animatorController = ItemAnimatorController(
       layoutManagerHolder: _layoutManagerHolder,
@@ -63,6 +123,9 @@ class _FlexDemoState extends State<FlexDemo> {
     if (mounted) setState(() => _itemBounds = bounds);
   }
 
+  /// 分割线后面的 item 数量（不含分割线本身）
+  int get _afterDividerCount => _adapter.itemCount - _dividerIndex - 1;
+
   ({Size itemSize, Size itemSpacing, EdgeInsetsGeometry edgeSpacing}) _scaledParams(int itemCount) {
     final s = _scale(_containerWidth, itemCount);
     return (
@@ -72,28 +135,60 @@ class _FlexDemoState extends State<FlexDemo> {
     );
   }
 
-  void _addItem() {
+  /// 在分割线前面添加 item（插入到 _dividerIndex 位置，分割线后移）
+  void _addBefore() {
     final newId = _nextId++;
-    final newIndex = _adapter.itemCount;
+    final insertIndex = _dividerIndex;
     final itemId = newId.toString();
     final newParams = _scaledParams(_adapter.itemCount + 1);
 
     _animatorController.performLayoutAnimations(
       adapter: _adapter,
-      addIndexes: [newIndex],
+      addIndexes: [insertIndex],
       itemSize: newParams.itemSize,
       itemSpacing: newParams.itemSpacing,
       edgeSpacing: newParams.edgeSpacing,
     );
-    _adapter.addItem(newId, index: newIndex);
+    _adapter.addItem(newId, index: insertIndex);
 
     _animatorController.performItemAnimation(
       itemId,
-      newIndex,
+      insertIndex,
       fromAlpha: 0.0,
       alpha: 1.0,
       curveConfig: const CurveConfig(curve: Curves.easeOut, durationMs: 300),
     );
+  }
+
+  /// 在分割线后面添加 item（固定插入到 index=10，即分割线后第一个位置）
+  /// 当后面的 item 数量 > 3 时，替换 index=10 的 item（无动画）
+  void _addAfter() {
+    final newId = _nextId++;
+    final insertIndex = _dividerIndex + 1;
+
+    if (_afterDividerCount > 3) {
+      _adapter.replaceAt(insertIndex, newId);
+    } else {
+      final itemId = newId.toString();
+      final newParams = _scaledParams(_adapter.itemCount + 1);
+
+      _animatorController.performLayoutAnimations(
+        adapter: _adapter,
+        addIndexes: [insertIndex],
+        itemSize: newParams.itemSize,
+        itemSpacing: newParams.itemSpacing,
+        edgeSpacing: newParams.edgeSpacing,
+      );
+      _adapter.addItem(newId, index: insertIndex);
+
+      _animatorController.performItemAnimation(
+        itemId,
+        insertIndex,
+        fromAlpha: 0.0,
+        alpha: 1.0,
+        curveConfig: const CurveConfig(curve: Curves.easeOut, durationMs: 300),
+      );
+    }
   }
 
   void _removeItem() {
@@ -113,8 +208,12 @@ class _FlexDemoState extends State<FlexDemo> {
 
   double _scale(double containerWidth, int itemCount) {
     if (itemCount == 0) return 1.0;
+    // 分割线占 _dividerWidth 而非 _baseItemSize
+    final dividerCount = _adapter.itemCount > _dividerIndex ? 1 : 0;
+    final normalCount = itemCount - dividerCount;
     final totalContent = _edgeH * 2 +
-        itemCount * _baseItemSize +
+        normalCount * _baseItemSize +
+        dividerCount * _dividerWidth +
         (itemCount - 1) * _baseSpacing;
     return (containerWidth / totalContent).clamp(0.0, 1.0);
   }
@@ -122,7 +221,8 @@ class _FlexDemoState extends State<FlexDemo> {
   FlexLayoutAlgorithm get _algorithm => FlexLayoutAlgorithm(
         justifyContent: _justify,
         alignItems: _align,
-        scrollDirection: Axis.horizontal,
+        direction: Axis.horizontal,
+        itemSizeProvider: _sizeProvider,
       );
 
   @override
@@ -164,8 +264,32 @@ class _FlexDemoState extends State<FlexDemo> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final itemId = _adapter.getItemId(index);
-                      final color =
-                          _colors[_adapter.getItem(index) % _colors.length];
+                      final rawItem = _adapter.getItem(index);
+
+                      if (_isDivider(rawItem)) {
+                        return KeyedSubtree(
+                          key: ValueKey(itemId),
+                          child: ItemAnimator(
+                            key: ValueKey('animator_$itemId'),
+                            itemId: itemId,
+                            paramsNotifier: _animatorController
+                                .listenAnimatorParams(itemId, index),
+                            layoutParamsListenable: _layoutManagerHolder
+                                .target!
+                                .listenLayoutParamsForPosition(index),
+                            onDispose: _animatorController.onItemUnmounted,
+                            child: Center(
+                              child: Container(
+                                width: _dividerWidth,
+                                height: scaledItem * 0.8,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final color = _colors[rawItem % _colors.length];
                       return KeyedSubtree(
                         key: ValueKey(itemId),
                         child: ItemAnimator(
@@ -217,12 +341,21 @@ class _FlexDemoState extends State<FlexDemo> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           FloatingActionButton(
-            heroTag: 'add',
+            heroTag: 'addBefore',
             mini: true,
-            onPressed: _addItem,
-            child: const Icon(Icons.add),
+            onPressed: _addBefore,
+            tooltip: '分割线前添加',
+            child: const Icon(Icons.arrow_back),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          FloatingActionButton(
+            heroTag: 'addAfter',
+            mini: true,
+            onPressed: _addAfter,
+            tooltip: '分割线后添加',
+            child: const Icon(Icons.arrow_forward),
+          ),
+          const SizedBox(width: 8),
           FloatingActionButton(
             heroTag: 'remove',
             mini: true,
