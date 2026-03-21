@@ -8,7 +8,7 @@ import 'layoutablelist/animator/item_animator.dart';
 import 'layoutablelist/animator/item_animator_controller.dart';
 import 'layoutablelist/animator/animation_widget.dart';
 import 'layoutablelist/physics/stack_scroll_physics.dart';
-import 'layoutablelist/drag/item_draggable.dart';
+import 'layoutablelist/drag/item_swippable.dart';
 
 /// 堆叠布局 Demo
 /// 使用 StackLayoutAlgorithm 和 ListAdapter 实现补位动画
@@ -19,7 +19,7 @@ class StackDemo extends StatefulWidget {
   State<StackDemo> createState() => _StackDemoState();
 }
 
-class _StackDemoState extends State<StackDemo> with ItemDragListener {
+class _StackDemoState extends State<StackDemo> with ItemSwipeListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
   late ItemAnimatorController _animatorController;
@@ -149,7 +149,7 @@ class _StackDemoState extends State<StackDemo> with ItemDragListener {
   }
 
   @override
-  void onDragStart(String itemId) {
+  void onSwipeStart(String itemId) {
     final index = _adapter.findChildIndex(itemId);
     if (index != null) {
       setState(() => _draggingIndex = index);
@@ -157,7 +157,7 @@ class _StackDemoState extends State<StackDemo> with ItemDragListener {
   }
 
   @override
-  void onDragMove(String itemId, Offset offset) {}
+  void onSwipeMove(String itemId, Offset offset) {}
 
   @override
   void onSnapBackEnd(String itemId) {
@@ -165,7 +165,7 @@ class _StackDemoState extends State<StackDemo> with ItemDragListener {
   }
 
   @override
-  bool onDragEnd(String itemId, DragResult result) {
+  bool onSwipeEnd(String itemId, SwipeResult result) {
     switch (result) {
       case SnapBack():
         // 回弹，不做处理（topMost 在 onSnapBackEnd 里还原）
@@ -246,7 +246,7 @@ class _StackDemoState extends State<StackDemo> with ItemDragListener {
                     ),
                   );
                 },
-                child: ItemDraggable(
+                child: ItemSwippable(
                   key: ValueKey('draggable_$itemId'),
                   itemId: itemId,
                   paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
@@ -256,7 +256,7 @@ class _StackDemoState extends State<StackDemo> with ItemDragListener {
                     velocityThreshold: 800.0,
                     offsetThreshold: 300.0,
                   ),
-                  dragGestureSettings: const DeviceGestureSettings(
+                  gestureSettings: const DeviceGestureSettings(
                     touchSlop: 30.0,  // 增大阈值，让拖拽更难触发（接近 80 度才触发）
                   ),
                   child: ItemAnimator(

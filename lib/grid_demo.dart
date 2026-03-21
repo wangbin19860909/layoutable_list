@@ -7,7 +7,7 @@ import 'layoutablelist/list_adapter.dart';
 import 'layoutablelist/animator/item_animator.dart';
 import 'layoutablelist/animator/item_animator_controller.dart';
 import 'layoutablelist/animator/animation_widget.dart';
-import 'layoutablelist/drag/item_draggable.dart';
+import 'layoutablelist/drag/item_swippable.dart';
 
 /// 网格布局 Demo（横向一行）
 /// 使用 GridLayoutAlgorithm 和 ListAdapter 实现补位动画
@@ -18,7 +18,7 @@ class GridDemo extends StatefulWidget {
   State<GridDemo> createState() => _GridDemoState();
 }
 
-class _GridDemoState extends State<GridDemo> with ItemDragListener {
+class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
   final _layoutManagerHolder = ServiceHolder<LayoutManager>();
   late ListAdapter<CardItem> _adapter;
   late ItemAnimatorController _animatorController;
@@ -142,13 +142,13 @@ class _GridDemoState extends State<GridDemo> with ItemDragListener {
   }
 
   @override
-  void onDragStart(String itemId) {}
+  void onSwipeStart(String itemId) {}
 
   @override
-  void onDragMove(String itemId, Offset offset) {}
+  void onSwipeMove(String itemId, Offset offset) {}
 
   @override
-  bool onDragEnd(String itemId, DragResult result) {
+  bool onSwipeEnd(String itemId, SwipeResult result) {
     switch (result) {
       case SnapBack():
         // 回弹，不做任何操作
@@ -218,7 +218,7 @@ class _GridDemoState extends State<GridDemo> with ItemDragListener {
                     ),
                   );
                 },
-                child: ItemDraggable(
+                child: ItemSwippable(
                   key: ValueKey('draggable_$itemId'),
                   itemId: itemId,
                   paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
@@ -228,8 +228,8 @@ class _GridDemoState extends State<GridDemo> with ItemDragListener {
                     velocityThreshold: 800.0,
                     offsetThreshold: 300.0,
                   ),
-                  dragThreshold: const DragThreshold(min: -150, max: 150),
-                  dragGestureSettings: const DeviceGestureSettings(
+                  dragThreshold: const OffsetThreshold(min: -150, max: 150),
+                  gestureSettings: const DeviceGestureSettings(
                     touchSlop: 30.0,
                   ),
                   child: ItemAnimator(

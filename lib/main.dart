@@ -4,6 +4,7 @@ import 'grid_demo.dart';
 import 'animation_demo.dart';
 import 'flex_demo.dart';
 import 'layout_animation_demo.dart';
+import 'drag_demo.dart';
 
 void main() => runApp(const MyApp());
 
@@ -99,6 +100,20 @@ class DemoListScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const AnimationDemoPage()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: '拖拽 Demo',
+            description: 'DragManager + DropTarget + ItemDraggable',
+            icon: Icons.open_with,
+            color: Colors.deepPurple,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DragDemo()),
               );
             },
           ),
