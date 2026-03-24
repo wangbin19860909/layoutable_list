@@ -5,6 +5,8 @@ import 'animation_demo.dart';
 import 'flex_demo.dart';
 import 'layout_animation_demo.dart';
 import 'drag_demo.dart';
+import 'variable_size_swap_demo.dart';
+import 'grid2_demo.dart';
 
 void main() => runApp(const MyApp());
 
@@ -100,6 +102,34 @@ class DemoListScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const AnimationDemoPage()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: 'Grid 2行 Demo',
+            description: 'GridLayoutAlgorithm 2行 + padding 补位动画',
+            icon: Icons.grid_view,
+            color: Colors.indigo,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const Grid2Demo()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: '不同尺寸 Item 交换',
+            description: 'ItemSizeProvider + tag 方案，补位动画尺寸正确',
+            icon: Icons.swap_vert,
+            color: Colors.deepOrange,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VariableSizeSwapDemo()),
               );
             },
           ),

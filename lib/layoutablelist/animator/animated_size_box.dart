@@ -57,6 +57,7 @@ class SizeAnimationParams {
 /// - 当 ItemAnimatorParams.size 变化且不为 zero 时，执行尺寸动画
 /// - 当 LayoutParams 变化时（非动画期间），直接更新尺寸，不执行动画
 class SizeAnimationParamsMerger extends ValueNotifier<SizeAnimationParams> {
+  static final _log = Logger('SizeAnimationParamsMerger');
   final ValueListenable<ItemAnimatorParams> paramsNotifier;
   ValueListenable<LayoutParams> _layoutParamsListenable;
   
@@ -113,6 +114,7 @@ class SizeAnimationParamsMerger extends ValueNotifier<SizeAnimationParams> {
     final newSize = _layoutParamsListenable.value.rect.size;
     
     if (!_isAnimating && newSize != value.size) {
+      _log.dDebounced('layout size update (no anim) ${value.size} → $newSize');
       value = SizeAnimationParams(size: newSize, animate: false);
     }
   }
@@ -208,7 +210,7 @@ class _AnimatedSizeBoxState extends State<AnimatedSizeBox>
       _isAnimating = false;
       _currentSize = targetSize;
       _controller.value = 1.0;
-      _log.dDebounced('size update (no anim) ${targetSize.width.toStringAsFixed(1)}×${targetSize.height.toStringAsFixed(1)}');
+      _log.d('size update (no anim) ${targetSize.width.toStringAsFixed(1)}×${targetSize.height.toStringAsFixed(1)}');
     }
   }
 

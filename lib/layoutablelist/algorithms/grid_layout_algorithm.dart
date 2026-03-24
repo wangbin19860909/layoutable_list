@@ -21,8 +21,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
   /// 两侧最多能多滚动的 item 数量（乘以 itemExtent 得到像素）
   final double maxOverscrollCount;
 
-  GridLayoutAlgorithm({
-    this.spanCount = 3,
+  GridLayoutAlgorithm({    this.spanCount = 3,
     this.scrollDirection = Axis.vertical,
     this.maxOverscrollCount = 1.0,
   });
@@ -50,6 +49,14 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         : (mainStart: r.top, mainEnd: r.bottom, crossStart: r.left, crossEnd: r.right);
   }
 
+  /// 解析 padding 的主轴起始和结束值
+  ({double mainStart, double mainEnd}) _resolvePadding(EdgeInsetsGeometry padding, TextDirection td) {
+    final r = padding.resolve(td);
+    return scrollDirection == Axis.horizontal
+        ? (mainStart: r.left, mainEnd: r.right)
+        : (mainStart: r.top, mainEnd: r.bottom);
+  }
+
 
   @override
   double? calculatePaintExtent(
@@ -66,6 +73,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry padding,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   }) {
@@ -73,9 +81,10 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
 
     final spacing = _resolveItemSpacing(itemSpacing);
     final edge = _resolveEdgeSpacing(edgeSpacing, TextDirection.ltr);
+    final p = _resolvePadding(padding, TextDirection.ltr);
 
     final int lastMainAxisIndex = (itemCount - 1) ~/ spanCount;
-    return edge.mainStart + lastMainAxisIndex * (itemExtent + spacing.main) + itemExtent + edge.mainEnd;
+    return p.mainStart + edge.mainStart + lastMainAxisIndex * (itemExtent + spacing.main) + itemExtent + edge.mainEnd + p.mainEnd;
   }
 
   @override
@@ -92,6 +101,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     required Axis scrollDirection,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
+    Object? tag,
   }) {
     final double itemExtent =
         scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
@@ -100,7 +110,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
 
     final double clampedScrollOffset = _clampScrollOffset(
       scrollOffset, itemExtent, itemCount, mainAxisExtent,
-      edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
+      padding: padding, edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
     );
 
     if (scrollDirection == Axis.vertical) {
@@ -222,13 +232,11 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
     final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
     final double edgeStart = _resolveEdgeSpacing(edgeSpacing, textDirection).mainStart;
-    final resolvedPadding = padding.resolve(textDirection);
-    final double paddingStart =
-        scrollDirection == Axis.vertical ? resolvedPadding.top : resolvedPadding.left;
+    final double paddingStart = _resolvePadding(padding, textDirection).mainStart;
 
     final double clampedScrollOffset = _clampScrollOffset(
       scrollOffset, itemExtent, itemCount, mainAxisExtent,
-      edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
+      padding: padding, edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
     );
 
     final double totalStart = paddingStart + edgeStart;
@@ -260,13 +268,11 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
     final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
     final double edgeStart = _resolveEdgeSpacing(edgeSpacing, textDirection).mainStart;
-    final resolvedPadding = padding.resolve(textDirection);
-    final double paddingStart =
-        scrollDirection == Axis.vertical ? resolvedPadding.top : resolvedPadding.left;
+    final double paddingStart = _resolvePadding(padding, textDirection).mainStart;
 
     final double clampedScrollOffset = _clampScrollOffset(
       scrollOffset, itemExtent, itemCount, mainAxisExtent,
-      edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
+      padding: padding, edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
     );
 
     final double totalStart = paddingStart + edgeStart;
@@ -302,6 +308,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
     double itemExtent,
     int itemCount,
     double mainAxisExtent, {
+    required EdgeInsetsGeometry padding,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   }) {
@@ -309,6 +316,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
       itemExtent: itemExtent,
       itemCount: itemCount,
       viewportExtent: mainAxisExtent,
+      padding: padding,
       edgeSpacing: edgeSpacing,
       itemSpacing: itemSpacing,
     );

@@ -73,13 +73,15 @@ abstract class ItemSizeProvider {
   /// 返回 [index] 处 item 的实际尺寸
   ///
   /// [defaultSize] 是统一配置的默认尺寸，实现者可据此返回调整后的尺寸。
-  Size sizeOf(int index, Size defaultSize);
+  /// [tag] 是透传的业务标签，实现者可据此决定返回哪套尺寸（如变更前/后）。
+  Size sizeOf(int index, Size defaultSize, {Object? tag});
 
   /// 返回 [0, index) 范围内所有 item 相对于等尺寸布局的累积偏移量
   ///
   /// 即 sum(actualSize[i] - defaultSize) for i in [0, index)。
   /// 负值表示实际总尺寸小于等尺寸，正值表示大于。
-  Offset totalOffsetUpTo(int index, Size defaultSize);
+  /// [tag] 是透传的业务标签，实现者可据此决定返回哪套偏移（如变更前/后）。
+  Offset totalOffsetUpTo(int index, Size defaultSize, {Object? tag});
 }
 
 /// 布局算法接口
@@ -133,6 +135,7 @@ abstract class LayoutAlgorithm {
     required Axis scrollDirection,
     EdgeInsetsGeometry edgeSpacing = EdgeInsets.zero,
     Size itemSpacing = Size.zero,
+    Object? tag,
   }) {
     if (layoutParamsCache != null && layoutParamsCache!.containsKey(index)) {
       return layoutParamsCache![index]!;
@@ -151,6 +154,7 @@ abstract class LayoutAlgorithm {
       scrollDirection: scrollDirection,
       edgeSpacing: edgeSpacing,
       itemSpacing: itemSpacing,
+      tag: tag,
     );
 
     if (layoutParamsCache != null) {
@@ -174,6 +178,7 @@ abstract class LayoutAlgorithm {
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry padding,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   });
@@ -224,6 +229,7 @@ abstract class LayoutAlgorithm {
     required Axis scrollDirection,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
+    Object? tag,
   });
 
   /// 获取给定 scrollOffset 下的最小可见 item 索引

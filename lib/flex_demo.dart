@@ -32,7 +32,7 @@ class _DividerSizeProvider implements ItemSizeProvider {
       dividerBaseWidth * (defaultSize.width / baseItemSize);
 
   @override
-  Size sizeOf(int index, Size defaultSize) {
+  Size sizeOf(int index, Size defaultSize, {Object? tag}) {
     if (index < adapter.itemCount && _isDivider(adapter.getItem(index))) {
       return Size(_scaledDividerWidth(defaultSize), defaultSize.height);
     }
@@ -40,7 +40,7 @@ class _DividerSizeProvider implements ItemSizeProvider {
   }
 
   @override
-  Offset totalOffsetUpTo(int index, Size defaultSize) {
+  Offset totalOffsetUpTo(int index, Size defaultSize, {Object? tag}) {
     final delta = _scaledDividerWidth(defaultSize) - defaultSize.width;
     final count = index.clamp(0, adapter.itemCount);
     int dividers = 0;

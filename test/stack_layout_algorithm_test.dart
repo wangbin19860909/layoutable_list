@@ -37,7 +37,7 @@ void main() {
     test('returns 0 for empty list', () {
       expect(
         algo.computeMaxScrollOffset(itemExtent: 300, itemCount: 0, viewportExtent: 400,
-            edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero),
+            padding: EdgeInsets.zero, edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero),
         0,
       );
     });
@@ -48,6 +48,7 @@ void main() {
         itemExtent: 300,
         itemCount: 5,
         viewportExtent: 400,
+        padding: EdgeInsets.zero,
         edgeSpacing: EdgeInsets.zero,
         itemSpacing: Size.zero,
       );

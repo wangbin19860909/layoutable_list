@@ -68,6 +68,7 @@ abstract class LayoutManager {
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? edgeSpacing,
     Size? itemSpacing,
+    Object? tag,
   });
 
   /// 监听指定 item 的布局参数变化
@@ -112,11 +113,12 @@ abstract class LayoutManager {
   double get viewportMainAxisExtent;
 
   /// 计算指定 item 数量下的最大滚动距离
-  ///
-  /// [itemCount] - item 总数
-  ///
-  /// 返回值：最大滚动距离
-  double getMaxScrollOffset(int itemCount);
+  double getMaxScrollOffset(int itemCount, {
+    EdgeInsetsGeometry? padding,
+    Size? itemSize,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
+  });
 
   /// item 总数
   ///
@@ -222,7 +224,7 @@ class LayoutableSliverList extends SliverMultiBoxAdaptorWidget {
   /// Item 的尺寸
   final Size itemSize;
 
-  /// 左侧 padding（用于调整居中位置）
+  /// 内边距（影响主轴方向的可滚动范围和 item 起始位置）
   final EdgeInsetsGeometry padding;
 
   /// 边缘间距
@@ -422,15 +424,22 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   }
 
   @override
-  double getMaxScrollOffset(int itemCount) {
+  double getMaxScrollOffset(int itemCount, {
+    EdgeInsetsGeometry? padding,
+    Size? itemSize,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
+  }) {
+    final resolvedItemSize = itemSize ?? this.itemSize;
+    final resolvedItemExtent = isVertical ? resolvedItemSize.height : resolvedItemSize.width;
     final actualScrollExtent = _layoutAlgorithm.computeMaxScrollOffset(
-      itemExtent: itemExtent,
+      itemExtent: resolvedItemExtent,
       itemCount: itemCount,
       viewportExtent: constraints.viewportMainAxisExtent,
-      edgeSpacing: edgeSpacing,
-      itemSpacing: itemSpacing,
+      padding: padding ?? this.padding,
+      edgeSpacing: edgeSpacing ?? this.edgeSpacing,
+      itemSpacing: itemSpacing ?? this.itemSpacing,
     );
-    
     return math.max(actualScrollExtent, constraints.viewportMainAxisExtent + 1.0);
   }
 
@@ -448,6 +457,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? edgeSpacing,
     Size? itemSpacing,
+    Object? tag,
   }) {
     final resolvedItemSize = itemSize ?? this.itemSize;
     return _layoutAlgorithm.getLayoutParamsForPosition(
@@ -463,6 +473,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       scrollDirection: isVertical ? Axis.vertical : Axis.horizontal,
       edgeSpacing: edgeSpacing ?? this.edgeSpacing,
       itemSpacing: itemSpacing ?? this.itemSpacing,
+      tag: tag,
     );
   }
 
@@ -561,6 +572,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
       itemExtent: itemExtent,
       itemCount: itemCount,
       viewportExtent: constraints.viewportMainAxisExtent,
+      padding: padding,
       edgeSpacing: edgeSpacing,
       itemSpacing: itemSpacing,
     );

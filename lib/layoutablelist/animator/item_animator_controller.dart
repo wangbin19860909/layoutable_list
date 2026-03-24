@@ -204,6 +204,22 @@ class ItemAnimatorController extends ChangeNotifier {
   /// [padding] - 可选，变更后的 padding
   /// [itemSize] - 可选，变更后的 item 尺寸（width x height），用于计算新布局参数
   /// [scrollOffset] - 可选，覆盖当前 scrollOffset
+  /// [refreshAfterAnimation] - 动画结束后是否触发数据刷新（默认 false）
+  ///
+  /// ## refreshAfterAnimation 的两种模式
+  ///
+  /// **false（默认）：先变更数据，再执行动画**
+  /// 调用顺序：performLayoutAnimations → applyDiff（数据变更）
+  /// - 数据变更后 Flutter 立即 rebuild，item 已在新位置
+  /// - 动画从"旧位置相对新位置的偏移"开始，向 Offset.zero 运动
+  /// - index 设为 newIndex，rebuild 后 widget 能正确找到对应的 notifier
+  ///
+  /// **true：先执行动画，动画结束后再变更数据**
+  /// 调用顺序：performLayoutAnimations → 动画播放 → onComplete 回调中 applyDiff
+  /// - 数据变更前 item 仍在旧位置，动画从当前视觉位置向新位置运动
+  /// - fromOffset 基于 origLayoutParams（当前视觉位置）计算，toOffset 为新旧位置之差
+  /// - index 保持 oldIndex，动画期间 widget 仍能找到对应的 notifier
+  /// - 适用于需要"先看到动画效果、动画完成后数据才生效"的场景（如不同尺寸 item 交换）
   AnimationInterrupter? performLayoutAnimations({
     required ListAdapter adapter,
     List<int> addIndexes = const [],
@@ -214,6 +230,7 @@ class ItemAnimatorController extends ChangeNotifier {
     double? scrollOffset,
     EdgeInsetsGeometry? edgeSpacing,
     Size? itemSpacing,
+    Object? newTag,
     VoidCallback? onComplete,
     bool refreshAfterAnimation = false,
   }) {
@@ -221,11 +238,15 @@ class ItemAnimatorController extends ChangeNotifier {
     final newItemCount = oldItemCount - removeIndexes.length + addIndexes.length;
     final currentScrollOffset = scrollOffset ?? layoutManager.scrollOffset;
 
-    // 当 item 减少时，预测 ScrollView 会调整到的新 scrollOffset
+    // 预测变更后 ScrollView 会调整到的新 scrollOffset
+    // 不仅处理 item 减少，也处理 padding/itemSize/edgeSpacing 变化导致 maxScroll 缩小的情况
     final newScrollOffset = _resolveNewScrollOffset(
-      oldItemCount: oldItemCount,
       newItemCount: newItemCount,
       currentScrollOffset: currentScrollOffset,
+      padding: padding,
+      itemSize: itemSize,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
     );
 
     // 构建 removeIndexes 的 Set，方便快速查找
@@ -276,23 +297,31 @@ class ItemAnimatorController extends ChangeNotifier {
         itemSize: itemSize,
         edgeSpacing: edgeSpacing,
         itemSpacing: itemSpacing,
+        tag: newTag,
       );
 
       final fromOffset =
           refreshAfterAnimation
+              // 动画先行模式：数据未变更，item 仍在旧位置
+              // 从当前视觉位置（origLayoutParams + 残留 offset）换算到 oldLayoutParams 坐标系
               ? origLayoutParams.rect.topLeft +
                   notifier.value.offset -
                   oldLayoutParams.rect.topLeft
+              // 数据先行模式：数据已变更，item 已在新位置
+              // 从旧位置换算出相对于新位置的偏移，作为动画起点
               : oldLayoutParams.rect.topLeft +
                   notifier.value.offset -
                   newLayoutParams.rect.topLeft;
 
       final toOffset =
           refreshAfterAnimation
+              // 动画先行模式：目标是新位置相对旧位置的偏移，动画结束时 item 视觉上到达新位置
               ? newLayoutParams.rect.topLeft - oldLayoutParams.rect.topLeft
+              // 数据先行模式：目标是 Offset.zero，即 item 回到自身的布局位置
               : Offset.zero;
 
-      if (fromOffset == toOffset) {
+      if (fromOffset == toOffset && newLayoutParams.rect.size == oldLayoutParams.rect.size) {
+        _log.d('skip $itemId[$oldIndex→$newIndex] fromOffset==toOffset=$fromOffset size unchanged=${oldLayoutParams.rect.size}');
         continue;
       }
 
@@ -302,6 +331,8 @@ class ItemAnimatorController extends ChangeNotifier {
       countCallback.doOnComplete(() => resetCallback.call(newIndex));
 
       notifier.value = ItemAnimatorParams(
+        // 动画先行模式保持 oldIndex：数据未变更，widget 仍以旧 index 查找 notifier
+        // 数据先行模式用 newIndex：数据已变更，rebuild 后 widget 以新 index 查找 notifier
         index: refreshAfterAnimation ? oldIndex : newIndex,
         springConfig: springConfig,
         curveConfig: curveConfig,
@@ -327,24 +358,28 @@ class ItemAnimatorController extends ChangeNotifier {
     return countCallback;
   }
 
-  /// 当 item 减少时，预测 ScrollView 会调整到的新 scrollOffset
+  /// 预测变更后 ScrollView 会调整到的新 scrollOffset
   double _resolveNewScrollOffset({
-    required int oldItemCount,
     required int newItemCount,
     required double currentScrollOffset,
+    EdgeInsetsGeometry? padding,
+    Size? itemSize,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
   }) {
-    if (newItemCount >= oldItemCount) return currentScrollOffset;
-
     final viewportExtent = layoutManager.viewportMainAxisExtent;
-    final oldMaxScroll = layoutManager.getMaxScrollOffset(oldItemCount);
-    final newMaxScroll = layoutManager.getMaxScrollOffset(newItemCount);
-    final isOverscrolling =
-        currentScrollOffset < 0 ||
-        currentScrollOffset > (oldMaxScroll - viewportExtent);
+    final newMaxScroll = layoutManager.getMaxScrollOffset(
+      newItemCount,
+      padding: padding,
+      itemSize: itemSize,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing,
+    );
 
-    return isOverscrolling
-        ? currentScrollOffset
-        : currentScrollOffset.clamp(0.0, newMaxScroll - viewportExtent);
+    final effectiveMax = newMaxScroll - viewportExtent;
+    final newScrollOffset = currentScrollOffset.clamp(0.0, effectiveMax > 0 ? effectiveMax : 0.0);
+    _log.d('resolveNewScrollOffset: current=$currentScrollOffset effectiveMax=${effectiveMax.toStringAsFixed(1)} → new=$newScrollOffset');
+    return newScrollOffset;
   }
 
   @override

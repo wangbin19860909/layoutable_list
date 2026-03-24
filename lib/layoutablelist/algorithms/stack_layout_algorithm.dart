@@ -25,6 +25,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry padding,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   }) {
@@ -77,6 +78,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
     required Axis scrollDirection,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
+    Object? tag,
   }) {
     final itemExtent = scrollDirection == Axis.horizontal ? itemSize.width : itemSize.height;
     final resolvedPadding = padding.resolve(textDirection);

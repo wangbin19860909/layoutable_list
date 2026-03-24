@@ -94,9 +94,9 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
   }
 
   /// 从 ItemSizeProvider 获取主轴方向的累积偏移量
-  double _mainDelta(int index, Size defaultSize, Axis scrollDirection) {
+  double _mainDelta(int index, Size defaultSize, Axis scrollDirection, {Object? tag}) {
     if (itemSizeProvider == null) return 0.0;
-    final offset = itemSizeProvider!.totalOffsetUpTo(index, defaultSize);
+    final offset = itemSizeProvider!.totalOffsetUpTo(index, defaultSize, tag: tag);
     return scrollDirection == Axis.horizontal ? offset.dx : offset.dy;
   }
 
@@ -104,12 +104,13 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
   ({double main, double cross}) _resolveActualItemSize(
     int index,
     Size defaultSize,
-    Axis scrollDirection,
-  ) {
+    Axis scrollDirection, {
+    Object? tag,
+  }) {
     if (itemSizeProvider == null) {
       return _resolveItemSize(defaultSize, scrollDirection);
     }
-    return _resolveItemSize(itemSizeProvider!.sizeOf(index, defaultSize), scrollDirection);
+    return _resolveItemSize(itemSizeProvider!.sizeOf(index, defaultSize, tag: tag), scrollDirection);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -129,6 +130,7 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required double itemExtent,
     required int itemCount,
     required double viewportExtent,
+    required EdgeInsetsGeometry padding,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   }) {
@@ -140,8 +142,7 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
       direction == Axis.horizontal ? Size(itemExtent, 0) : Size(0, itemExtent),
       direction,
     );
-    return edge.mainStart + itemCount * itemExtent + (itemCount - 1) * mainSpacing + totalDelta + edge.mainEnd;
-  }
+    return edge.mainStart + itemCount * itemExtent + (itemCount - 1) * mainSpacing + totalDelta + edge.mainEnd;  }
 
   @override
   LayoutParams getLayoutParamsForPosition({
@@ -157,20 +158,21 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required Axis scrollDirection,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
+    Object? tag,
   }) {
     final item = _resolveItemSize(itemSize, scrollDirection);
-    final actual = _resolveActualItemSize(index, itemSize, scrollDirection);
+    final actual = _resolveActualItemSize(index, itemSize, scrollDirection, tag: tag);
     final vp = _resolveViewport(mainAxisExtent, crossAxisExtent, scrollDirection);
     final pad = _resolvePadding(padding, textDirection, scrollDirection);
     final edge = _resolveEdgeSpacing(edgeSpacing, textDirection);
     final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
-    final double delta = _mainDelta(index, itemSize, scrollDirection);
+    final double delta = _mainDelta(index, itemSize, scrollDirection, tag: tag);
 
     final double availableMain =
         vp.main - pad.mainStart * 2 - edge.mainStart - edge.mainEnd;
     final double baseStart = pad.mainStart + edge.mainStart;
 
-    final double totalDelta = _mainDelta(itemCount, itemSize, scrollDirection);
+    final double totalDelta = _mainDelta(itemCount, itemSize, scrollDirection, tag: tag);
 
     final double mainOffset = _computeMainOffset(
       index: index,

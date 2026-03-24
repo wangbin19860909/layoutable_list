@@ -13,14 +13,17 @@ class MockLayoutManager implements LayoutManager {
   final double _itemExtent;
   final double _viewportExtent;
   double _scrollOffset;
+  final EdgeInsetsGeometry _currentPadding;
 
   MockLayoutManager({
     double itemExtent = 100,
     double viewportExtent = 400,
     double scrollOffset = 0,
+    EdgeInsetsGeometry currentPadding = EdgeInsets.zero,
   })  : _itemExtent = itemExtent,
         _viewportExtent = viewportExtent,
-        _scrollOffset = scrollOffset;
+        _scrollOffset = scrollOffset,
+        _currentPadding = currentPadding;
 
   @override
   void addListener(OnItemBoundsChanged listener) {}
@@ -41,8 +44,15 @@ class MockLayoutManager implements LayoutManager {
   int get itemCount => 0;
 
   @override
-  double getMaxScrollOffset(int itemCount) {
-    return itemCount * _itemExtent;
+  double getMaxScrollOffset(int itemCount, {
+    EdgeInsetsGeometry? padding,
+    Size? itemSize,
+    EdgeInsetsGeometry? edgeSpacing,
+    Size? itemSpacing,
+  }) {
+    final extent = itemSize?.width ?? _itemExtent;
+    final resolvedPadding = (padding ?? _currentPadding).resolve(TextDirection.ltr);
+    return resolvedPadding.left + resolvedPadding.right + itemCount * extent;
   }
 
   @override
@@ -56,11 +66,14 @@ class MockLayoutManager implements LayoutManager {
     EdgeInsetsGeometry? padding,
     EdgeInsetsGeometry? edgeSpacing,
     Size? itemSpacing,
+    Object? tag,
   }) {
     final offset = scrollOffset ?? _scrollOffset;
-    final left = index * _itemExtent - offset;
+    final extent = itemSize?.width ?? _itemExtent;
+    final resolvedPadding = (padding ?? _currentPadding).resolve(TextDirection.ltr);
+    final left = resolvedPadding.left + index * extent - offset;
     return LayoutParams(
-      rect: Rect.fromLTWH(left, 0, _itemExtent, _itemExtent),
+      rect: Rect.fromLTWH(left, 0, extent, extent),
       scale: 1.0,
       alpha: 1.0,
       dimming: 0.0,
@@ -216,6 +229,118 @@ void main() {
 
       expect(nA.value.offset, Offset.zero);
 
+      adapter.dispose();
+    });
+  });
+
+  // ── padding 变化补位动画场景 ──────────────────────────────────────────────
+
+  group('prepareLayoutAnimations - padding change', () {
+    // 场景1：在右边缘，加左 padding
+    // 加左 padding 后内容右移，item 应从左偏移处动画到 0
+    test('at right edge, add left padding: items animate from negative offset', () {
+      // viewport=400, 8 items * 100 = 800, effectiveMax = 400
+      final lm = MockLayoutManager(
+        itemExtent: 100,
+        viewportExtent: 400,
+        scrollOffset: 400, // 在右边缘
+      );
+      final h = ServiceHolder<LayoutManager>()..attach(lm);
+      final c = ItemAnimatorController(layoutManagerHolder: h);
+
+      final adapter = makeAdapter(['a', 'b', 'c', 'b1', 'c1', 'd', 'e', 'f']);
+      // 注册可见 item（右边缘可见的是 index 4~7）
+      final n4 = c.listenAnimatorParams('c1'.hashCode.toString(), 4);
+      final n5 = c.listenAnimatorParams('d'.hashCode.toString(), 5);
+      n4.addListener(() {});
+      n5.addListener(() {});
+
+      // 加左 padding=100，newPadding.left=100
+      c.performLayoutAnimations(
+        adapter: adapter,
+        padding: const EdgeInsets.only(left: 100),
+        itemSize: const Size(100, 100),
+      );
+
+      // oldLeft = index*100 - 400，newLeft = 100 + index*100 - 400
+      // fromOffset.dx = oldLeft - newLeft = -100
+      expect(n4.value.offset.dx, closeTo(-100, 0.1));
+      expect(n5.value.offset.dx, closeTo(-100, 0.1));
+
+      c.dispose();
+      h.detach();
+      adapter.dispose();
+    });
+
+    // 场景2：从左 padding 切换到右 padding，在右边缘
+    // newScrollOffset 不变，新旧 left 不同，应有补位动画
+    test('at right edge, switch left padding to right padding: items animate', () {
+      // 左 padding=100，8 items，effectiveMax = 100+800-400 = 500
+      // mock 带左 padding，使 oldLayoutParams 正确反映切换前布局
+      final lm = MockLayoutManager(
+        itemExtent: 100,
+        viewportExtent: 400,
+        scrollOffset: 500, // 在右边缘（left padding 时的 effectiveMax）
+        currentPadding: const EdgeInsets.only(left: 100),
+      );
+      final h = ServiceHolder<LayoutManager>()..attach(lm);
+      final c = ItemAnimatorController(layoutManagerHolder: h);
+
+      final adapter = makeAdapter(['a', 'b', 'c', 'b1', 'c1', 'd', 'e', 'f']);
+      final n5 = c.listenAnimatorParams('d'.hashCode.toString(), 5);
+      final n6 = c.listenAnimatorParams('e'.hashCode.toString(), 6);
+      n5.addListener(() {});
+      n6.addListener(() {});
+
+      // 从左 padding=100 切换到右 padding=100
+      c.performLayoutAnimations(
+        adapter: adapter,
+        padding: const EdgeInsets.only(right: 100),
+        itemSize: const Size(100, 100),
+      );
+
+      // oldLeft(left padding, index=5) = 100 + 5*100 - 500 = 100
+      // newLeft(right padding, index=5) = 0 + 5*100 - 500 = 0
+      // fromOffset.dx = oldLeft - newLeft = 100
+      expect(n5.value.offset.dx, closeTo(100, 0.1));
+      expect(n6.value.offset.dx, closeTo(100, 0.1));
+
+      c.dispose();
+      h.detach();
+      adapter.dispose();
+    });
+
+    // 场景3：右 padding 在左边缘，padding 变为 0，itemSize 变大
+    // 第一列 item 位移为零但 size 变化，不应被跳过
+    test('at left edge, remove right padding with larger itemSize: size animation triggered', () {
+      // 右 padding=100，scrollOffset=0（左边缘），itemExtent=80
+      final lm = MockLayoutManager(
+        itemExtent: 80,
+        viewportExtent: 400,
+        scrollOffset: 0,
+      );
+      final h = ServiceHolder<LayoutManager>()..attach(lm);
+      final c = ItemAnimatorController(layoutManagerHolder: h);
+
+      final adapter = makeAdapter(['a', 'b', 'c', 'd', 'e', 'f']);
+      // index=0 的 item，位移为零但 size 从 80 变为 100
+      final n0 = c.listenAnimatorParams('a'.hashCode.toString(), 0);
+      n0.addListener(() {});
+
+      // 去掉右 padding，itemSize 从 80 变为 100
+      c.performLayoutAnimations(
+        adapter: adapter,
+        padding: EdgeInsets.zero,
+        itemSize: const Size(100, 100),
+      );
+
+      // fromOffset == toOffset == Offset.zero，但 size 变化，不应跳过
+      // notifier 应被更新，size 字段为新尺寸
+      expect(n0.value.offset, Offset.zero);
+      expect(n0.value.size, const Size(100, 100));
+
+      c.dispose();
+      h.detach();
       adapter.dispose();
     });
   });

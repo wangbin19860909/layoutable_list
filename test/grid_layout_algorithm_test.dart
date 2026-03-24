@@ -71,6 +71,7 @@ void main() {
         itemExtent: 100,
         itemCount: 9,
         viewportExtent: 300,
+        padding: EdgeInsets.zero,
         edgeSpacing: EdgeInsets.zero,
         itemSpacing: Size.zero,
       );
@@ -81,7 +82,7 @@ void main() {
     test('computeMaxScrollOffset with 0 items', () {
       expect(
         algo.computeMaxScrollOffset(itemExtent: 100, itemCount: 0, viewportExtent: 300,
-            edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero),
+            padding: EdgeInsets.zero, edgeSpacing: EdgeInsets.zero, itemSpacing: Size.zero),
         0,
       );
     });
@@ -191,6 +192,7 @@ void main() {
         itemExtent: 100,
         itemCount: 9,
         viewportExtent: 300,
+        padding: EdgeInsets.zero,
         edgeSpacing: const EdgeInsets.only(top: 10, bottom: 20),
         itemSpacing: Size.zero,
       );
@@ -204,6 +206,7 @@ void main() {
         itemExtent: 100,
         itemCount: 6,
         viewportExtent: 400,
+        padding: EdgeInsets.zero,
         edgeSpacing: const EdgeInsets.only(left: 10, right: 20),
         itemSpacing: Size.zero,
       );
@@ -220,7 +223,7 @@ void main() {
       const edge = EdgeInsets.only(top: 10, bottom: 20);
       final maxScroll = algo.computeMaxScrollOffset(
         itemExtent: 100, itemCount: 9, viewportExtent: 300,
-        edgeSpacing: edge, itemSpacing: Size.zero,
+        padding: EdgeInsets.zero, edgeSpacing: edge, itemSpacing: Size.zero,
       );
       final scrollOffset = maxScroll - 300; // scroll to end
       final p = getParams(algo, index: 6, // first item of last row
@@ -238,7 +241,7 @@ void main() {
       // viewportExtent=200 so content(330) > viewport, can actually scroll
       final maxScroll = algo.computeMaxScrollOffset(
         itemExtent: 100, itemCount: 6, viewportExtent: 200,
-        edgeSpacing: edge, itemSpacing: Size.zero,
+        padding: EdgeInsets.zero, edgeSpacing: edge, itemSpacing: Size.zero,
       );
       final scrollOffset = maxScroll - 200; // effectiveMax = 330 - 200 = 130
       final p = getParams(algo, index: 4, // first item of last column
