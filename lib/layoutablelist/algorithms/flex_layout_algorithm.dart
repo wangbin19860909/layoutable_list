@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
+import 'package:flutter_multi_window/layoutablelist/logger.dart';
 import 'layout_algorithm.dart';
 
 /// 主轴对齐方式（justify-content）
@@ -13,12 +14,7 @@ enum FlexJustifyContent {
 }
 
 /// 交叉轴对齐方式（align-items）
-enum FlexAlignItems {
-  start,
-  end,
-  center,
-  stretch,
-}
+enum FlexAlignItems { start, end, center, stretch }
 
 /// FlexBox 布局算法
 ///
@@ -53,11 +49,21 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
 
   /// 一次性解析 edgeSpacing 的四个方向间距
   ({double mainStart, double mainEnd, double crossStart, double crossEnd})
-      _resolveEdgeSpacing(EdgeInsetsGeometry edgeSpacing, TextDirection td) {
+  _resolveEdgeSpacing(EdgeInsetsGeometry edgeSpacing, TextDirection td) {
     final r = edgeSpacing.resolve(td);
     return direction == Axis.horizontal
-        ? (mainStart: r.left, mainEnd: r.right, crossStart: r.top, crossEnd: r.bottom)
-        : (mainStart: r.top, mainEnd: r.bottom, crossStart: r.left, crossEnd: r.right);
+        ? (
+          mainStart: r.left,
+          mainEnd: r.right,
+          crossStart: r.top,
+          crossEnd: r.bottom,
+        )
+        : (
+          mainStart: r.top,
+          mainEnd: r.bottom,
+          crossStart: r.left,
+          crossEnd: r.right,
+        );
   }
 
   /// 将 mainAxisExtent / crossAxisExtent 映射为主轴 / 交叉轴视口尺寸
@@ -72,15 +78,26 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
   }
 
   /// 将 padding 解析为主轴 / 交叉轴方向间距
-  ({double mainStart, double mainEnd, double crossStart, double crossEnd}) _resolvePadding(
+  ({double mainStart, double mainEnd, double crossStart, double crossEnd})
+  _resolvePadding(
     EdgeInsetsGeometry padding,
     TextDirection textDirection,
     Axis scrollDirection,
   ) {
     final r = padding.resolve(textDirection);
     return scrollDirection == Axis.horizontal
-        ? (mainStart: r.left, mainEnd: r.right, crossStart: r.top, crossEnd: r.bottom)
-        : (mainStart: r.top, mainEnd: r.bottom, crossStart: r.left, crossEnd: r.right);
+        ? (
+          mainStart: r.left,
+          mainEnd: r.right,
+          crossStart: r.top,
+          crossEnd: r.bottom,
+        )
+        : (
+          mainStart: r.top,
+          mainEnd: r.bottom,
+          crossStart: r.left,
+          crossEnd: r.right,
+        );
   }
 
   /// 将 itemSize 拆分为主轴 / 交叉轴尺寸
@@ -94,9 +111,18 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
   }
 
   /// 从 ItemSizeProvider 获取主轴方向的累积偏移量
-  double _mainDelta(int index, Size defaultSize, Axis scrollDirection, {Object? tag}) {
+  double _mainDelta(
+    int index,
+    Size defaultSize,
+    Axis scrollDirection, {
+    Object? tag,
+  }) {
     if (itemSizeProvider == null) return 0.0;
-    final offset = itemSizeProvider!.totalOffsetUpTo(index, defaultSize, tag: tag);
+    final offset = itemSizeProvider!.totalOffsetUpTo(
+      index,
+      defaultSize,
+      tag: tag,
+    );
     return scrollDirection == Axis.horizontal ? offset.dx : offset.dy;
   }
 
@@ -110,7 +136,10 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     if (itemSizeProvider == null) {
       return _resolveItemSize(defaultSize, scrollDirection);
     }
-    return _resolveItemSize(itemSizeProvider!.sizeOf(index, defaultSize, tag: tag), scrollDirection);
+    return _resolveItemSize(
+      itemSizeProvider!.sizeOf(index, defaultSize, tag: tag),
+      scrollDirection,
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -122,8 +151,7 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required double to,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
-  }) =>
-      constraints.viewportMainAxisExtent;
+  }) => constraints.viewportMainAxisExtent;
 
   @override
   double computeMaxScrollOffset({
@@ -142,7 +170,12 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
       direction == Axis.horizontal ? Size(itemExtent, 0) : Size(0, itemExtent),
       direction,
     );
-    return edge.mainStart + itemCount * itemExtent + (itemCount - 1) * mainSpacing + totalDelta + edge.mainEnd;  }
+    return edge.mainStart +
+        itemCount * itemExtent +
+        (itemCount - 1) * mainSpacing +
+        totalDelta +
+        edge.mainEnd;
+  }
 
   @override
   LayoutParams getLayoutParamsForPosition({
@@ -161,8 +194,17 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     Object? tag,
   }) {
     final item = _resolveItemSize(itemSize, scrollDirection);
-    final actual = _resolveActualItemSize(index, itemSize, scrollDirection, tag: tag);
-    final vp = _resolveViewport(mainAxisExtent, crossAxisExtent, scrollDirection);
+    final actual = _resolveActualItemSize(
+      index,
+      itemSize,
+      scrollDirection,
+      tag: tag,
+    );
+    final vp = _resolveViewport(
+      mainAxisExtent,
+      crossAxisExtent,
+      scrollDirection,
+    );
     final pad = _resolvePadding(padding, textDirection, scrollDirection);
     final edge = _resolveEdgeSpacing(edgeSpacing, textDirection);
     final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
@@ -172,18 +214,25 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
         vp.main - pad.mainStart * 2 - edge.mainStart - edge.mainEnd;
     final double baseStart = pad.mainStart + edge.mainStart;
 
-    final double totalDelta = _mainDelta(itemCount, itemSize, scrollDirection, tag: tag);
+    final double totalDelta = _mainDelta(
+      itemCount,
+      itemSize,
+      scrollDirection,
+      tag: tag,
+    );
 
-    final double mainOffset = _computeMainOffset(
-      index: index,
-      itemCount: itemCount,
-      itemMainSize: item.main,
-      availableMain: availableMain,
-      baseStart: baseStart,
-      mainSpacing: mainSpacing,
-      delta: delta,
-      totalDelta: totalDelta,
-    ) - scrollOffset;
+    final double mainOffset =
+        _computeMainOffset(
+          index: index,
+          itemCount: itemCount,
+          itemMainSize: item.main,
+          availableMain: availableMain,
+          baseStart: baseStart,
+          mainSpacing: mainSpacing,
+          delta: delta,
+          totalDelta: totalDelta,
+        ) -
+        scrollOffset;
 
     final double availableCross =
         vp.cross - pad.crossStart * 2 - edge.crossStart - edge.crossEnd;
@@ -296,7 +345,23 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required Axis scrollDirection,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
-  }) => 0;
+  }) {
+    getLayoutParamsWithCache(
+      index: 0, 
+      scrollOffset: scrollOffset, 
+      mainAxisExtent: mainAxisExtent, 
+      crossAxisExtent: crossAxisExtent, 
+      itemSize: itemSize, 
+      itemCount: itemCount, 
+      padding: padding, 
+      reverseLayout: reverseLayout, 
+      textDirection: textDirection, 
+      scrollDirection: scrollDirection,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing
+    );
+    return 0;
+  }
 
   @override
   int getMaxVisibleIndex({
@@ -312,7 +377,24 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required Axis scrollDirection,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
-  }) => math.max(0, itemCount - 1);
+  }) {
+    getLayoutParamsWithCache(
+      index: itemCount, 
+      scrollOffset: scrollOffset, 
+      mainAxisExtent: mainAxisExtent, 
+      crossAxisExtent: crossAxisExtent, 
+      itemSize: itemSize, 
+      itemCount: itemCount, 
+      padding: padding, 
+      reverseLayout: reverseLayout, 
+      textDirection: 
+      textDirection, 
+      scrollDirection: scrollDirection,
+      edgeSpacing: edgeSpacing,
+      itemSpacing: itemSpacing
+    );
+    return math.max(0, itemCount - 1);
+  }
 
   @override
   double indexToLayoutOffset({
@@ -324,14 +406,16 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   }) {
-    final edge = _resolveEdgeSpacing(edgeSpacing, TextDirection.ltr);
-    final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
-    final double delta = _mainDelta(
-      index,
-      direction == Axis.horizontal ? Size(itemExtent, 0) : Size(0, itemExtent),
-      direction,
-    );
-    return edge.mainStart + index * (itemExtent + mainSpacing) + delta;
+    // 缓存命中时，用 params.rect 的主轴坐标，保证与 paint 位置一致
+    // hitTestBoxChild 依赖 childMainAxisPosition = layoutOffset - scrollOffset = rect.main
+    // performLayout 里 getChildConstraints 先于 indexToLayoutOffset 被调用，缓存已填充
+    final params = layoutParamsCache?[index];
+    if (params != null) {
+      final double mainPos =
+          direction == Axis.horizontal ? params.rect.left : params.rect.top;
+      return mainPos + scrollOffset;
+    }
+    // 缓存未命中（如 lastIndex+1 边界哨兵），退回单调递增的原始计算
+    return itemExtent  * index;
   }
-
 }

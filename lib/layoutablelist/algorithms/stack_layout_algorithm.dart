@@ -191,7 +191,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         itemSize: itemSize,
         itemCount: itemCount,
         padding: padding,
-        reverse: reverseLayout,
+        reverseLayout: reverseLayout,
         textDirection: textDirection,
         scrollDirection: scrollDirection,
       );
@@ -239,7 +239,7 @@ class StackLayoutAlgorithm extends LayoutAlgorithm {
         itemSize: itemSize,
         itemCount: itemCount,
         padding: padding,
-        reverse: reverseLayout,
+        reverseLayout: reverseLayout,
         textDirection: textDirection,
         scrollDirection: scrollDirection,
       );

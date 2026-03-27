@@ -7,6 +7,7 @@ import 'layout_animation_demo.dart';
 import 'drag_demo.dart';
 import 'variable_size_swap_demo.dart';
 import 'grid2_demo.dart';
+import 'ipad_desktop_demo.dart';
 
 void main() => runApp(const MyApp());
 
@@ -144,6 +145,20 @@ class DemoListScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const DragDemo()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: 'iPad 桌面',
+            description: 'Grid + Dock + 跨区域拖拽重排',
+            icon: Icons.tablet_mac,
+            color: Colors.blueGrey,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const IPadDesktopDemo()),
               );
             },
           ),

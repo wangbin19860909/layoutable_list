@@ -485,7 +485,7 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
     }
 
     // 创建新的 notifier
-    final initialParams = getLayoutParamsForPosition(index: index);
+    final initialParams = _getLayoutForPosition(index);
     final notifier = ValueNotifier<LayoutParams>(initialParams);
     _layoutParamsNotifiers[index] = notifier;
 
