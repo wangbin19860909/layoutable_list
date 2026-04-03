@@ -113,11 +113,12 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
       padding: padding, edgeSpacing: edgeSpacing, itemSpacing: itemSpacing,
     );
 
+    LayoutParams params;
     if (scrollDirection == Axis.vertical) {
-      return _getVerticalLayoutParams(
+      params = _getVerticalLayoutParams(
         index: index,
         scrollOffset: clampedScrollOffset,
-        containerWidth: mainAxisExtent,
+        containerWidth: crossAxisExtent,
         itemExtent: itemExtent,
         resolvedPadding: resolvedPadding,
         edgeSpacing: edgeSpacing,
@@ -125,7 +126,7 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         itemSpacing: itemSpacing,
       );
     } else {
-      return _getHorizontalLayoutParams(
+      params = _getHorizontalLayoutParams(
         index: index,
         scrollOffset: clampedScrollOffset,
         containerHeight: crossAxisExtent,
@@ -136,6 +137,10 @@ class GridLayoutAlgorithm extends LayoutAlgorithm {
         itemSpacing: itemSpacing,
       );
     }
+
+    if (!reverseLayout) return params;
+
+    return flipMainAxis(params, scrollDirection, mainAxisExtent);
   }
 
   LayoutParams _getVerticalLayoutParams({

@@ -217,7 +217,7 @@ class _StackDemoState extends State<StackDemo> with ItemSwipeListener {
       body: LayoutableListWidget(
         itemSize: Size(itemWidth, itemHeight),
         scrollDirection: Axis.horizontal,
-        reverseLayout: false,
+        reverseLayout: true,
         paintConfig: PaintConfig(reverse: true, topMostIndex: _draggingIndex),
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 300,

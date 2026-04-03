@@ -257,7 +257,7 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
       height = actual.main;
     }
 
-    return LayoutParams(
+    final params = LayoutParams(
       rect: Rect.fromLTWH(left, top, width, height),
       scale: 1.0,
       alpha: 1.0,
@@ -266,6 +266,10 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
       headerAlpha: 1.0,
       shadowAlpha: 0.0,
     );
+
+    if (!reverseLayout) return params;
+
+    return flipMainAxis(params, scrollDirection, mainAxisExtent);
   }
 
   /// 计算 item 在主轴方向的起始位置（未减去 scrollOffset）

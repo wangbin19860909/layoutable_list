@@ -57,6 +57,26 @@ class LayoutParams {
     required this.shadowAlpha,
   });
 
+  LayoutParams copyWith({
+    Rect? rect,
+    double? scale,
+    double? alpha,
+    double? dimming,
+    double? titleAlpha,
+    double? headerAlpha,
+    double? shadowAlpha,
+  }) {
+    return LayoutParams(
+      rect: rect ?? this.rect,
+      scale: scale ?? this.scale,
+      alpha: alpha ?? this.alpha,
+      dimming: dimming ?? this.dimming,
+      titleAlpha: titleAlpha ?? this.titleAlpha,
+      headerAlpha: headerAlpha ?? this.headerAlpha,
+      shadowAlpha: shadowAlpha ?? this.shadowAlpha,
+    );
+  }
+
   @override
   String toString() {
     return 'LayoutParams(rect: $rect, scale: $scale, alpha: $alpha, '
@@ -314,6 +334,27 @@ abstract class LayoutAlgorithm {
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
   });
+
+  /// reverse 模式下，将 LayoutParams 的主轴坐标做镜像翻转。
+  @protected
+  LayoutParams flipMainAxis(LayoutParams params, Axis scrollDirection, double mainAxisExtent) {
+    final rect = params.rect;
+    if (scrollDirection == Axis.vertical) {
+      return params.copyWith(rect: Rect.fromLTWH(
+        rect.left,
+        mainAxisExtent - rect.top - rect.height,
+        rect.width,
+        rect.height,
+      ));
+    } else {
+      return params.copyWith(rect: Rect.fromLTWH(
+        mainAxisExtent - rect.left - rect.width,
+        rect.top,
+        rect.width,
+        rect.height,
+      ));
+    }
+  }
 
   /// 软边界 clamp：输出永远在 [min, max] 内，但在接近边界的 [margin] 区间内
   /// 用指数曲线压缩，越接近边界阻力越大，不会硬截断

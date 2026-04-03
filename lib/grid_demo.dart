@@ -186,7 +186,7 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
       body: LayoutableListWidget(
         itemSize: const Size(200, 250),
         scrollDirection: Axis.horizontal,
-        reverseLayout: false,
+        reverseLayout: true,
         layoutManagerHolder: _layoutManagerHolder,
         cacheExtent: 200,
         physics: const BouncingScrollPhysics(),
