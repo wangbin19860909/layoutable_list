@@ -237,17 +237,24 @@ class ItemAnimatorController extends ChangeNotifier {
     final oldItemCount = adapter.itemCount;
     final newItemCount = oldItemCount - removeIndexes.length + addIndexes.length;
     final currentScrollOffset = scrollOffset ?? layoutManager.scrollOffset;
+    final viewportExtent = layoutManager.viewportMainAxisExtent;
+    final oldMaxScroll = layoutManager.getMaxScrollOffset(oldItemCount);
+    final oldEffectiveMax = oldMaxScroll - viewportExtent;
+    final isOverscroll = currentScrollOffset > oldEffectiveMax;
 
     // 预测变更后 ScrollView 会调整到的新 scrollOffset
-    // 不仅处理 item 减少，也处理 padding/itemSize/edgeSpacing 变化导致 maxScroll 缩小的情况
-    final newScrollOffset = _resolveNewScrollOffset(
-      newItemCount: newItemCount,
-      currentScrollOffset: currentScrollOffset,
-      padding: padding,
-      itemSize: itemSize,
-      edgeSpacing: edgeSpacing,
-      itemSpacing: itemSpacing,
-    );
+    // overscroll 时不预测：ScrollView 会通过回弹动画自行回到 effectiveMax，
+    // 补位动画只需处理 index 变化带来的位移，避免与回弹动画不同步导致跳变
+    final newScrollOffset = isOverscroll
+        ? currentScrollOffset
+        : _resolveNewScrollOffset(
+            newItemCount: newItemCount,
+            currentScrollOffset: currentScrollOffset,
+            padding: padding,
+            itemSize: itemSize,
+            edgeSpacing: edgeSpacing,
+            itemSpacing: itemSpacing,
+          );
 
     // 构建 removeIndexes 的 Set，方便快速查找
     final removeIndexSet = removeIndexes.toSet();

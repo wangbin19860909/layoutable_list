@@ -8,6 +8,7 @@ import 'drag_demo.dart';
 import 'variable_size_swap_demo.dart';
 import 'grid2_demo.dart';
 import 'ipad_desktop_demo.dart';
+import 'grid_vertical_demo.dart';
 
 void main() => runApp(const MyApp());
 
@@ -159,6 +160,20 @@ class DemoListScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const IPadDesktopDemo()),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: '纵向网格 2列',
+            description: 'GridLayoutAlgorithm 纵向滚动 + swipe 删除补位动画',
+            icon: Icons.grid_on,
+            color: Colors.teal,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const GridVerticalDemo()),
               );
             },
           ),
