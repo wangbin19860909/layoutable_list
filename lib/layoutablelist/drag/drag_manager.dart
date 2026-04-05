@@ -7,11 +7,12 @@ class DropResult {
   /// 是否接受 drop
   final bool accepted;
 
-  /// shadow 飞向的目标全局坐标（accepted=true 时必须提供）
-  final Offset? targetPosition;
+  /// shadow 飞向的目标区域，**局部坐标**（相对于命中的 DropTarget bounds 左上角）
+  /// accepted=true 时必须提供，DragManager 内部会自动转换为全局坐标
+  final Rect? targetRect;
 
-  const DropResult.accept(this.targetPosition) : accepted = true;
-  const DropResult.reject() : accepted = false, targetPosition = null;
+  const DropResult.accept(this.targetRect) : accepted = true;
+  const DropResult.reject() : accepted = false, targetRect = null;
 }
 
 /// 单个 DropTarget 的注册信息
@@ -39,6 +40,13 @@ class _DropTargetEntry<T> {
   Rect get bounds => boundsListenable.value;
 }
 
+/// shadow 的飞行状态（center + scale）
+class _ShadowState {
+  final Offset center;
+  final double scale;
+  const _ShadowState(this.center, this.scale);
+}
+
 /// 拖拽管理器
 ///
 /// 泛型 [T] 为拖拽携带的业务数据类型。
@@ -59,8 +67,11 @@ class DragManager<T> {
   OverlayState? _overlayState;
   _DropTargetEntry<T>? _sourceTarget;
 
-  final ValueNotifier<Offset> _shadowCenter = ValueNotifier(Offset.zero);
+  final ValueNotifier<_ShadowState> _shadowState =
+      ValueNotifier(const _ShadowState(Offset.zero, 1.0));
   Size _shadowSize = Size.zero;
+
+  Offset get _shadowCenter => _shadowState.value.center;
 
   /// 注册 DropTarget，返回唯一 id
   int register({
@@ -92,8 +103,6 @@ class DragManager<T> {
       _targets.keys.toList().reversed.map((k) => _targets[k]!);
 
   /// 开始拖拽
-  ///
-  /// [context] 用于查找 OverlayState，只在此处使用，不持久持有
   void startDrag({
     required BuildContext context,
     required T data,
@@ -107,23 +116,25 @@ class DragManager<T> {
     _currentData = data;
     _origin = origin;
     _shadowSize = origin.size;
-    _shadowCenter.value = origin.center;
+    _shadowState.value = _ShadowState(origin.center, 1.0);
     debugPrint('[DragManager] startDrag origin=$origin shadowSize=$_shadowSize');
 
-    // 找到包含 origin 中心的 DropTarget 作为 source
     _sourceTarget = _targetsReversed
         .where((e) => e.bounds.contains(origin.center))
         .firstOrNull;
 
     _overlayEntry = OverlayEntry(
-      builder: (_) => ValueListenableBuilder<Offset>(
-        valueListenable: _shadowCenter,
-        builder: (_, center, child) => Positioned(
-          left: center.dx - _shadowSize.width / 2,
-          top: center.dy - _shadowSize.height / 2,
+      builder: (_) => ValueListenableBuilder<_ShadowState>(
+        valueListenable: _shadowState,
+        builder: (_, state, child) => Positioned(
+          left: state.center.dx - _shadowSize.width / 2,
+          top: state.center.dy - _shadowSize.height / 2,
           width: _shadowSize.width,
           height: _shadowSize.height,
-          child: child!,
+          child: Transform.scale(
+            scale: state.scale,
+            child: child!,
+          ),
         ),
         child: IgnorePointer(child: shadowBuilder(data)),
       ),
@@ -136,7 +147,7 @@ class DragManager<T> {
   void updateDrag(Offset globalPoint) {
     if (_overlayEntry == null || _currentData == null) return;
 
-    _shadowCenter.value = globalPoint;
+    _shadowState.value = _ShadowState(globalPoint, 1.0);
 
     for (final entry in _targetsReversed) {
       final bounds = entry.bounds;
@@ -162,7 +173,6 @@ class DragManager<T> {
 
     final data = _currentData as T;
 
-    // 找到命中且 hover 中的 target
     _DropTargetEntry<T>? hitTarget;
     DropResult? dropResult;
 
@@ -180,9 +190,11 @@ class DragManager<T> {
       }
     }
 
-    if (hitTarget != null && dropResult != null && dropResult.targetPosition != null) {
+    if (hitTarget != null && dropResult != null && dropResult.targetRect != null) {
+      // 局部坐标转全局
+      final globalRect = dropResult.targetRect!.shift(hitTarget.bounds.topLeft);
       _flyTo(
-        target: dropResult.targetPosition!,
+        targetRect: globalRect,
         onComplete: () {
           hitTarget!.isHovered = false;
           hitTarget.onDropCompleted(data);
@@ -210,11 +222,11 @@ class DragManager<T> {
     _flyBack(data);
   }
 
-  /// shadow 飞回原点
+  /// shadow 飞回原点（尺寸恢复 1.0）
   void _flyBack(T data) {
     _sourceTarget?.onDropBack(data);
     _flyTo(
-      target: _origin!.center,
+      targetRect: _origin!,
       onComplete: () {
         _sourceTarget?.onDropCompleted(data);
         _removeOverlay();
@@ -222,34 +234,47 @@ class DragManager<T> {
     );
   }
 
-  /// shadow 飞行动画
-  void _flyTo({required Offset target, required VoidCallback onComplete}) {
+  /// shadow 飞行动画：同时动画 center 和 scale
+  ///
+  /// scale = targetRect.size / _shadowSize，让 shadow 缩放到目标尺寸
+  void _flyTo({required Rect targetRect, required VoidCallback onComplete}) {
     final overlay = _overlayState;
     if (overlay == null) {
       onComplete();
       return;
     }
 
-    final from = _shadowCenter.value;
-    debugPrint('[DragManager] flyTo from=$from target=$target shadowSize=$_shadowSize');
-    if ((from - target).distance < 1.0) {
+    final fromCenter = _shadowCenter;
+    final toCenter = targetRect.center;
+    final toScaleX = _shadowSize.width > 0 ? targetRect.width / _shadowSize.width : 1.0;
+    final toScaleY = _shadowSize.height > 0 ? targetRect.height / _shadowSize.height : 1.0;
+    // 取较小的 scale 保持比例，或用平均值
+    final toScale = (toScaleX + toScaleY) / 2;
+    final fromScale = _shadowState.value.scale;
+
+    debugPrint('[DragManager] flyTo from=$fromCenter→$toCenter scale=$fromScale→$toScale');
+
+    if ((fromCenter - toCenter).distance < 1.0 && (fromScale - toScale).abs() < 0.01) {
       onComplete();
       return;
     }
 
-    // 用 AnimationController 驱动，挂在临时 OverlayEntry 上
-    // 直接用 ticker 驱动 ValueNotifier
     final controller = AnimationController(
       vsync: overlay,
       duration: Duration(milliseconds: flyConfig.durationMs),
     );
 
-    final animation = Tween<Offset>(begin: from, end: target)
-        .animate(CurvedAnimation(parent: controller, curve: flyConfig.curve));
+    final curved = CurvedAnimation(parent: controller, curve: flyConfig.curve);
+    final centerAnim = Tween<Offset>(begin: fromCenter, end: toCenter).animate(curved);
+    final scaleAnim = Tween<double>(begin: fromScale, end: toScale).animate(curved);
 
-    animation.addListener(() => _shadowCenter.value = animation.value);
+    void listener() {
+      _shadowState.value = _ShadowState(centerAnim.value, scaleAnim.value);
+    }
 
+    controller.addListener(listener);
     controller.forward().whenComplete(() {
+      controller.removeListener(listener);
       controller.dispose();
       onComplete();
     });
@@ -265,7 +290,7 @@ class DragManager<T> {
 
   void dispose() {
     _removeOverlay();
-    _shadowCenter.dispose();
+    _shadowState.dispose();
     _targets.clear();
   }
 }

@@ -145,23 +145,38 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
 
   // ── 网格 drop 逻辑 ──────────────────────────────────────────────────────────
 
-  int _gridIndexAt(Offset localOffset, double iconSize, double spacing) {
-    final col = (localOffset.dx / (iconSize + spacing)).floor().clamp(0, _gridColumns - 1);
-    final row = (localOffset.dy / (iconSize + spacing)).floor().clamp(0, 999);
-    return (row * _gridColumns + col).clamp(0, _gridAdapter.itemCount);
+  /// 根据局部坐标找最近的网格插入 index
+  int _gridIndexAt(Offset localOffset) {
+    final lm = _gridHolder.target;
+    if (lm == null) return 0;
+    final count = _gridAdapter.itemCount;
+    if (count == 0) return 0;
+
+    int bestIndex = count;
+    double bestDist = double.infinity;
+    for (int i = 0; i < count; i++) {
+      final rect = lm.getLayoutParamsForPosition(index: i, scrollOffset: 0).rect;
+      final dist = (rect.center - localOffset).distance;
+      if (dist < bestDist) {
+        bestDist = dist;
+        // 如果点在 item 左半边，插入在它前面；右半边插入在它后面
+        bestIndex = localOffset.dx < rect.center.dx ? i : i + 1;
+      }
+    }
+    return bestIndex.clamp(0, count);
   }
 
   DropResult _onDropToGrid(_AppIcon data, Offset localOffset) {
-    final iconSize = _currentIconSize;
-    final spacing = _currentSpacing;
-    final insertIndex = _gridIndexAt(localOffset, iconSize, spacing).clamp(0, _gridAdapter.itemCount);
-    final target = _gridItemCenter(insertIndex, iconSize, spacing);
-    return DropResult.accept(target);
+    final lm = _gridHolder.target;
+    if (lm == null) return const DropResult.reject();
+    final insertIndex = _gridIndexAt(localOffset);
+    // 用 LayoutManager 算目标 rect（局部坐标，相对于网格容器）
+    final targetIndex = insertIndex.clamp(0, _gridAdapter.itemCount - 1);
+    final rect = lm.getLayoutParamsForPosition(index: targetIndex, scrollOffset: 0).rect;
+    return DropResult.accept(rect);
   }
 
   void _onDropCompletedGrid(_AppIcon data) {
-    final iconSize = _currentIconSize;
-    final spacing = _currentSpacing;
     final insertIndex = (_gridInsertIndex ?? _gridAdapter.itemCount).clamp(0, _gridAdapter.itemCount);
 
     setState(() {
@@ -190,16 +205,12 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
       _gridAnimator.performLayoutAnimations(
         adapter: _gridAdapter,
         moveIndexes: diff.moveIndexes,
-        itemSize: Size(iconSize, iconSize),
-        itemSpacing: Size(spacing, spacing),
       );
       _gridAdapter.applyDiff(newOrder);
     } else {
       _gridAnimator.performLayoutAnimations(
         adapter: _gridAdapter,
         addIndexes: [insertIndex],
-        itemSize: Size(iconSize, iconSize),
-        itemSpacing: Size(spacing, spacing),
       );
       _gridAdapter.addItem(data, index: insertIndex);
     }
@@ -207,21 +218,38 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
 
   // ── Dock drop 逻辑 ──────────────────────────────────────────────────────────
 
+  /// 根据局部坐标找最近的 Dock 插入 index
   int _dockIndexAt(Offset localOffset) {
-    const leftPadding = 16.0;
-    const stride = _dockIconSize + 12.0;
-    final x = localOffset.dx - leftPadding;
-    return (x / stride).round().clamp(0, _dockAdapter.itemCount);
+    final lm = _dockHolder.target;
+    if (lm == null) return 0;
+    final count = _dockAdapter.itemCount;
+    if (count == 0) return 0;
+
+    int bestIndex = count;
+    double bestDist = double.infinity;
+    for (int i = 0; i < count; i++) {
+      final rect = lm.getLayoutParamsForPosition(index: i, scrollOffset: 0).rect;
+      final dist = (rect.center - localOffset).distance;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIndex = localOffset.dx < rect.center.dx ? i : i + 1;
+      }
+    }
+    return bestIndex.clamp(0, count);
   }
 
   DropResult _onDropToDock(_AppIcon data, Offset localOffset) {
+    final lm = _dockHolder.target;
+    if (lm == null) return const DropResult.reject();
     final alreadyInDock = _dockAdapter.findChildIndex(data.id.toString()) != null;
     if (!alreadyInDock && _dockAdapter.itemCount >= _dockMaxItems) {
       return const DropResult.reject();
     }
     final insertIndex = _dockIndexAt(localOffset);
-    final target = _dockItemCenter(insertIndex);
-    return DropResult.accept(target);
+    // 用 LayoutManager 算目标 rect（局部坐标，相对于 Dock 容器）
+    final targetIndex = insertIndex.clamp(0, _dockAdapter.itemCount - 1);
+    final rect = lm.getLayoutParamsForPosition(index: targetIndex, scrollOffset: 0).rect;
+    return DropResult.accept(rect);
   }
 
   void _onDropCompletedDock(_AppIcon data) {
@@ -236,13 +264,9 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
     final fromGrid = _gridAdapter.findChildIndex(data.id.toString()) != null;
     if (fromGrid) {
       final gridIdx = _gridAdapter.findChildIndex(data.id.toString())!;
-      final iconSize = _currentIconSize;
-      final spacing = _currentSpacing;
       _gridAnimator.performLayoutAnimations(
         adapter: _gridAdapter,
         removeIndexes: [gridIdx],
-        itemSize: Size(iconSize, iconSize),
-        itemSpacing: Size(spacing, spacing),
       );
       _gridAdapter.removeAt(gridIdx);
     }
@@ -273,26 +297,6 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
 
   // ── 位置计算辅助 ────────────────────────────────────────────────────────────
 
-  double _currentIconSize = 72.0;
-  double _currentSpacing = 12.0;
-
-  Offset _gridItemCenter(int index, double iconSize, double spacing) {
-    final bounds = _gridBounds.value;
-    final col = index % _gridColumns;
-    final row = index ~/ _gridColumns;
-    final x = bounds.left + col * (iconSize + spacing) + iconSize / 2;
-    final y = bounds.top + row * (iconSize + spacing) + iconSize / 2;
-    return Offset(x, y);
-  }
-
-  Offset _dockItemCenter(int index) {
-    final bounds = _dockBounds.value;
-    final stride = _dockIconSize + 12.0;
-    final totalWidth = _dockAdapter.itemCount * stride - 12.0;
-    final startX = bounds.left + (bounds.width - totalWidth) / 2;
-    return Offset(startX + index * stride + _dockIconSize / 2, bounds.center.dy);
-  }
-
   // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
@@ -318,8 +322,6 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
       final W = constraints.maxWidth;
       final spacing = W * 0.015;
       final iconSize = (W - spacing * (_gridColumns + 1)) / _gridColumns;
-      _currentIconSize = iconSize;
-      _currentSpacing = spacing;
 
       final edgeSpacing = EdgeInsets.all(spacing);
       final itemSpacing = Size(spacing, spacing);
@@ -330,7 +332,7 @@ class _IPadDesktopDemoState extends State<IPadDesktopDemo> {
         boundsListenable: _gridBounds,
         onEnter: (_) {},
         onMove: (data, offset) {
-          final idx = _gridIndexAt(offset, iconSize, spacing).clamp(0, _gridAdapter.itemCount);
+          final idx = _gridIndexAt(offset).clamp(0, _gridAdapter.itemCount);
           if (_gridInsertIndex != idx) setState(() => _gridInsertIndex = idx);
         },
         onExit: (_) => setState(() => _gridInsertIndex = null),

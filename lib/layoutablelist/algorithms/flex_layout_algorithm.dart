@@ -161,21 +161,7 @@ class FlexLayoutAlgorithm extends LayoutAlgorithm {
     required EdgeInsetsGeometry padding,
     required EdgeInsetsGeometry edgeSpacing,
     required Size itemSpacing,
-  }) {
-    if (itemCount == 0) return 0.0;
-    final double mainSpacing = _resolveItemSpacing(itemSpacing).main;
-    final edge = _resolveEdgeSpacing(edgeSpacing, TextDirection.ltr);
-    final double totalDelta = _mainDelta(
-      itemCount,
-      direction == Axis.horizontal ? Size(itemExtent, 0) : Size(0, itemExtent),
-      direction,
-    );
-    return edge.mainStart +
-        itemCount * itemExtent +
-        (itemCount - 1) * mainSpacing +
-        totalDelta +
-        edge.mainEnd;
-  }
+  }) => 0;
 
   @override
   LayoutParams getLayoutParamsForPosition({

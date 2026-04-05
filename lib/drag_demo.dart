@@ -120,8 +120,11 @@ class _DragDemoState extends State<DragDemo> {
 
   DropResult _onDropToLeft(_Item data, Offset localOffset) {
     final insertIndex = _calcInsertIndex(localOffset, _leftItems.length);
-    final target = _calcTargetPosition(insertIndex, _leftItems, _leftItemKeys, _leftBounds.value);
-    return DropResult.accept(target);
+    final globalCenter = _calcTargetPosition(insertIndex, _leftItems, _leftItemKeys, _leftBounds.value);
+    // 转为局部坐标 Rect（相对于 DropTarget bounds）
+    final localCenter = globalCenter - _leftBounds.value.topLeft;
+    final rect = Rect.fromCenter(center: localCenter, width: _leftBounds.value.width - _listPadding * 2, height: _itemHeight);
+    return DropResult.accept(rect);
   }
 
   void _onDropCompletedLeft(_Item data) {
@@ -143,8 +146,10 @@ class _DragDemoState extends State<DragDemo> {
       return const DropResult.reject();
     }
     final insertIndex = _calcInsertIndex(localOffset, _rightItems.length);
-    final target = _calcTargetPosition(insertIndex, _rightItems, _rightItemKeys, _rightBounds.value);
-    return DropResult.accept(target);
+    final globalCenter = _calcTargetPosition(insertIndex, _rightItems, _rightItemKeys, _rightBounds.value);
+    final localCenter = globalCenter - _rightBounds.value.topLeft;
+    final rect = Rect.fromCenter(center: localCenter, width: _rightBounds.value.width - _listPadding * 2, height: _itemHeight);
+    return DropResult.accept(rect);
   }
 
   void _onDropCompletedRight(_Item data) {
