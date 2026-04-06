@@ -60,7 +60,6 @@ class _ResetParamsCallback {
         index: index,
         offset: Offset.zero,
         toOffset: Offset.zero,
-        size: Size.zero,
       );
     }
   }
@@ -133,8 +132,10 @@ class ItemAnimatorController extends ChangeNotifier {
     String itemId,
     int index, {
     CurveConfig? curveConfig,
+    int delayMs = 0,
     double? offsetX,
     double? offsetY,
+    double? fromScale,
     double? scalle,
     double? fromAlpha,
     double? alpha,
@@ -146,9 +147,11 @@ class ItemAnimatorController extends ChangeNotifier {
         ItemAnimatorParams(
           index: index,
           curveConfig: curveConfig,
+          delayMs: delayMs,
           offset: Offset.zero,
           toOffset: Offset.zero,
-          scale: 1.0,
+          scale: fromScale ?? 1.0,
+          toScale: scalle ?? 1.0,
           alpha: fromAlpha ?? 1.0,
           toAlpha: alpha ?? 1.0,
           onComplete: onComplete
@@ -158,7 +161,9 @@ class ItemAnimatorController extends ChangeNotifier {
       if (notifier.value.index == index) {
         notifier.value = notifier.value.copy(
           curveConfig: curveConfig,
+          delayMs: delayMs,
           offset: fromAlpha != null ? notifier.value.offset : null,
+          scale: fromScale ?? notifier.value.scale,
           alpha: fromAlpha ?? notifier.value.alpha,
           toOffset: Offset(
             offsetX ?? notifier.value.offset.dx,
@@ -180,7 +185,9 @@ class ItemAnimatorController extends ChangeNotifier {
         var offset = origLayoutParams.rect.topLeft + notifier.value.offset - layoutParams.rect.topLeft;
         notifier.value = notifier.value.copy(
           curveConfig: curveConfig,
+          delayMs: delayMs,
           offset: offset,
+          scale: fromScale ?? notifier.value.scale,
           toOffset: Offset(
             offsetX ?? offset.dx,
             offsetY ?? offset.dy,
@@ -240,12 +247,17 @@ class ItemAnimatorController extends ChangeNotifier {
     final viewportExtent = layoutManager.viewportMainAxisExtent;
     final oldMaxScroll = layoutManager.getMaxScrollOffset(oldItemCount);
     final oldEffectiveMax = oldMaxScroll - viewportExtent;
-    final isOverscroll = currentScrollOffset > oldEffectiveMax;
+    final isOverscroll = currentScrollOffset > oldEffectiveMax || currentScrollOffset < 0;
+
+    _log.d('performLayoutAnimations: oldItemCount=$oldItemCount newItemCount=$newItemCount '
+        'currentScrollOffset=${currentScrollOffset.toStringAsFixed(1)} '
+        'oldEffectiveMax=${oldEffectiveMax.toStringAsFixed(1)} '
+        'isOverscroll=$isOverscroll refreshAfterAnimation=$refreshAfterAnimation');
 
     // 预测变更后 ScrollView 会调整到的新 scrollOffset
     // overscroll 时不预测：ScrollView 会通过回弹动画自行回到 effectiveMax，
     // 补位动画只需处理 index 变化带来的位移，避免与回弹动画不同步导致跳变
-    final newScrollOffset = isOverscroll
+    final newScrollOffset = isOverscroll && !refreshAfterAnimation
         ? currentScrollOffset
         : _resolveNewScrollOffset(
             newItemCount: newItemCount,
@@ -256,10 +268,28 @@ class ItemAnimatorController extends ChangeNotifier {
             itemSpacing: itemSpacing,
           );
 
+    _log.d('newScrollOffset=${newScrollOffset.toStringAsFixed(1)}');
+
+    // overscroll + refreshAfterAnimation 时，jumpTo 会在动画结束后将 scrollOffset
+    // 从 currentScrollOffset 跳到 newScrollOffset，这会导致所有 item 在主轴方向
+    // 产生额外位移，需要提前从 toOffset 中减去这段补偿
+    final overscrollCompensation = isOverscroll && refreshAfterAnimation
+        ? _mainAxisOffset(currentScrollOffset, oldEffectiveMax)
+        : Offset.zero;
+
     // 构建 removeIndexes 的 Set，方便快速查找
     final removeIndexSet = removeIndexes.toSet();
 
-    final _CountCallback countCallback = _CountCallback(onComplete: onComplete);
+    // overscroll + refreshAfterAnimation 时，动画结束后先 jumpTo 新的 scrollOffset，
+    // 避免数据刷新后 ScrollView 回弹动画导致 item 跳变
+    final wrappedOnComplete = isOverscroll && refreshAfterAnimation
+        ? () {
+            layoutManager.scrollTo(newScrollOffset);
+            onComplete?.call();
+          }
+        : onComplete;
+
+    final _CountCallback countCallback = _CountCallback(onComplete: wrappedOnComplete);
 
     for (final itemId in _params.keys) {
       final notifier = _params[itemId];
@@ -309,23 +339,25 @@ class ItemAnimatorController extends ChangeNotifier {
 
       final fromOffset =
           refreshAfterAnimation
-              // 动画先行模式：数据未变更，item 仍在旧位置
-              // 从当前视觉位置（origLayoutParams + 残留 offset）换算到 oldLayoutParams 坐标系
               ? origLayoutParams.rect.topLeft +
                   notifier.value.offset -
                   oldLayoutParams.rect.topLeft
-              // 数据先行模式：数据已变更，item 已在新位置
-              // 从旧位置换算出相对于新位置的偏移，作为动画起点
               : oldLayoutParams.rect.topLeft +
                   notifier.value.offset -
                   newLayoutParams.rect.topLeft;
 
       final toOffset =
           refreshAfterAnimation
-              // 动画先行模式：目标是新位置相对旧位置的偏移，动画结束时 item 视觉上到达新位置
-              ? newLayoutParams.rect.topLeft - oldLayoutParams.rect.topLeft
-              // 数据先行模式：目标是 Offset.zero，即 item 回到自身的布局位置
+              ? newLayoutParams.rect.topLeft - oldLayoutParams.rect.topLeft + overscrollCompensation
               : Offset.zero;
+
+      _log.d('item $itemId[$oldIndex→$newIndex]: '
+          'origRect=(${origLayoutParams.rect.left.toStringAsFixed(1)},${origLayoutParams.rect.top.toStringAsFixed(1)},${origLayoutParams.rect.width.toStringAsFixed(1)},${origLayoutParams.rect.height.toStringAsFixed(1)}) '
+          'oldRect=(${oldLayoutParams.rect.left.toStringAsFixed(1)},${oldLayoutParams.rect.top.toStringAsFixed(1)},${oldLayoutParams.rect.width.toStringAsFixed(1)},${oldLayoutParams.rect.height.toStringAsFixed(1)}) '
+          'newRect=(${newLayoutParams.rect.left.toStringAsFixed(1)},${newLayoutParams.rect.top.toStringAsFixed(1)},${newLayoutParams.rect.width.toStringAsFixed(1)},${newLayoutParams.rect.height.toStringAsFixed(1)}) '
+          'residualOffset=(${notifier.value.offset.dx.toStringAsFixed(1)},${notifier.value.offset.dy.toStringAsFixed(1)}) '
+          'fromOffset=(${fromOffset.dx.toStringAsFixed(1)},${fromOffset.dy.toStringAsFixed(1)}) '
+          'toOffset=(${toOffset.dx.toStringAsFixed(1)},${toOffset.dy.toStringAsFixed(1)})');
 
       if (fromOffset == toOffset && newLayoutParams.rect.size == oldLayoutParams.rect.size) {
         _log.d('skip $itemId[$oldIndex→$newIndex] fromOffset==toOffset=$fromOffset size unchanged=${oldLayoutParams.rect.size}');
@@ -387,6 +419,14 @@ class ItemAnimatorController extends ChangeNotifier {
     final newScrollOffset = currentScrollOffset.clamp(0.0, effectiveMax > 0 ? effectiveMax : 0.0);
     _log.d('resolveNewScrollOffset: current=$currentScrollOffset effectiveMax=${effectiveMax.toStringAsFixed(1)} → new=$newScrollOffset');
     return newScrollOffset;
+  }
+
+  /// 将主轴方向的标量值转换为 Offset
+  Offset _mainAxisOffset(double currentOffset, double oldMaxOffset) {
+    final offset = currentOffset <= 0 ? currentOffset : currentOffset - oldMaxOffset;
+    return layoutManager.scrollDirection == Axis.vertical
+        ? Offset(0, offset)
+        : Offset(offset, 0);
   }
 
   @override

@@ -24,6 +24,7 @@ class ItemAnimatorParams extends AnimationParams {
     required this.index,
     super.springConfig,
     super.curveConfig,
+    super.delayMs,
     required super.offset,
     super.toOffset = Offset.zero,
     required super.scale,
@@ -39,6 +40,7 @@ class ItemAnimatorParams extends AnimationParams {
   ItemAnimatorParams copy({
     SpringConfig? springConfig,
     CurveConfig? curveConfig,
+    int? delayMs,
     int? index,
     Offset? offset,
     Offset? toOffset,
@@ -53,6 +55,7 @@ class ItemAnimatorParams extends AnimationParams {
       index: index ?? this.index,
       springConfig: springConfig ?? this.springConfig,
       curveConfig: curveConfig ?? this.curveConfig,
+      delayMs: delayMs ?? this.delayMs,
       offset: offset ?? this.offset,
       toOffset: toOffset ?? this.toOffset,
       scale: scale ?? this.scale,

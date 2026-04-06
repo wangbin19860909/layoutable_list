@@ -131,11 +131,24 @@ abstract class LayoutManager {
   /// 对于横向滚动，这是 itemWidth；对于纵向滚动，这是 itemHeight。
   double get itemExtent;
 
+  /// 滚动方向
+  Axis get scrollDirection;
+
   /// 注册监听器，每次 performLayout 后回调
   void addListener(OnItemBoundsChanged listener);
 
   /// 移除监听器
   void removeListener(OnItemBoundsChanged listener);
+
+  /// 滚动到指定 scrollOffset
+  /// [animated] 为 true 时带动画，false 时瞬间跳转
+  /// [duration] 动画时长，仅 animated=true 时生效
+  /// [curve] 动画曲线，仅 animated=true 时生效
+  void scrollTo(double scrollOffset, {
+    bool animated = false,
+    Duration duration = const Duration(milliseconds: 300),
+    Curve curve = Curves.easeOut,
+  });
 }
 
 /// 带 CustomScrollView 的完整堆叠列表组件
@@ -519,6 +532,9 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   }
 
   @override
+  Axis get scrollDirection => isVertical ? Axis.vertical : Axis.horizontal;
+
+  @override
   void addListener(OnItemBoundsChanged listener) {
     _itemBoundsListeners.add(listener);
   }
@@ -526,6 +542,22 @@ class RenderLayoutableSliverList extends RenderSliverFixedExtentBoxAdaptorBase
   @override
   void removeListener(OnItemBoundsChanged listener) {
     _itemBoundsListeners.remove(listener);
+  }
+
+  @override
+  void scrollTo(double scrollOffset, {
+    bool animated = false,
+    Duration duration = const Duration(milliseconds: 300),
+    Curve curve = Curves.easeOut,
+  }) {
+    final viewport = parent;
+    if (viewport is RenderViewport) {
+      if (animated) {
+        viewport.offset.moveTo(scrollOffset, duration: duration, curve: curve);
+      } else {
+        viewport.offset.jumpTo(scrollOffset);
+      }
+    }
   }
 
   @override

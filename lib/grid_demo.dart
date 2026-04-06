@@ -23,9 +23,6 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
   late ListAdapter<CardItem> _adapter;
   late ItemAnimatorController _animatorController;
   int _nextId = 0;
-  
-  // 追踪新添加的 item，用于执行添加动画
-  final Set<String> _newItemIds = {};
 
   @override
   void initState() {
@@ -87,21 +84,24 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
     );
     _nextId++;
     
-    _newItemIds.add(newItem.id.toString());
-    
     _animatorController.performLayoutAnimations(
       adapter: _adapter,
       addIndexes: [0],
     );
     _adapter.addItem(newItem, index: 0);
-    
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) {
-        setState(() {
-          _newItemIds.remove(newItem.id.toString());
-        });
-      }
-    });
+
+    // 新 item 入场动画：延迟等补位动画结束后，从 scale=0, alpha=0 → scale=1, alpha=1
+    final itemId = newItem.id.toString();
+    _animatorController.performItemAnimation(
+      itemId,
+      0,
+      curveConfig: const CurveConfig(curve: Curves.easeOut, durationMs: 400),
+      delayMs: 500,
+      fromScale: 0.0,
+      scalle: 1.0,
+      fromAlpha: 0.0,
+      alpha: 1.0,
+    );
   }
 
   AnimationInterrupter? _removeInterrupter;
@@ -117,7 +117,6 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
     const itemHeight = 250.0;
 
     // 被删除的 item 执行上移消失动画
-    var animParams = _animatorController.getAnimatorParams(removeId);
     _animatorController.performItemAnimation(
       removeId,
       0,
@@ -158,13 +157,28 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
           final index = _adapter.findChildIndex(itemId);
           if (index != null) {
+            // 被 swipe 的 item 继续向上/下飞出
+            const itemHeight = 250.0;
+            final flyOutY = direction == AxisDirection.up ? -itemHeight : itemHeight;
+            _animatorController.performItemAnimation(
+              itemId,
+              index,
+              curveConfig: const CurveConfig(curve: Curves.easeIn, durationMs: 300),
+              offsetY: flyOutY,
+              alpha: 0.0,
+            );
+
+            // 其余 item 补位动画，结束后删除数据
             _animatorController.performLayoutAnimations(
               adapter: _adapter,
               removeIndexes: [index],
+              refreshAfterAnimation: true,
+              onComplete: () {
+                _adapter.removeById(itemId);
+              },
             );
           }
-          _adapter.removeById(itemId);
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('已删除卡片 $itemId'),
@@ -200,46 +214,30 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
           (context, index) {
             final item = _adapter.getItem(index);
             final itemId = _adapter.getItemId(index);
-            final isNew = _newItemIds.contains(itemId);
 
             return KeyedSubtree(
               key: ValueKey(itemId),
-              child: TweenAnimationBuilder<double>(
-                key: ValueKey('tween_$itemId'),
-                tween: Tween(begin: isNew ? 0.0 : 1.0, end: 1.0),
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOut,
-                builder: (context, value, child) {
-                  return Opacity(
-                    opacity: value,
-                    child: Transform.scale(
-                      scale: value,
-                      child: child,
-                    ),
-                  );
-                },
-                child: ItemSwippable(
-                  key: ValueKey('draggable_$itemId'),
+              child: ItemSwippable(
+                key: ValueKey('draggable_$itemId'),
+                itemId: itemId,
+                paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
+                scrollDirection: Axis.horizontal,
+                listener: this,
+                swipeThreshold: const SwipeThreshold(
+                  velocityThreshold: 800.0,
+                  offsetThreshold: 300.0,
+                ),
+                dragThreshold: const OffsetThreshold(min: -150, max: 150),
+                gestureSettings: const DeviceGestureSettings(
+                  touchSlop: 30.0,
+                ),
+                child: ItemAnimator(
+                  key: ValueKey('animator_$itemId'),
                   itemId: itemId,
                   paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
-                  scrollDirection: Axis.horizontal,
-                  listener: this,
-                  swipeThreshold: const SwipeThreshold(
-                    velocityThreshold: 800.0,
-                    offsetThreshold: 300.0,
-                  ),
-                  dragThreshold: const OffsetThreshold(min: -150, max: 150),
-                  gestureSettings: const DeviceGestureSettings(
-                    touchSlop: 30.0,
-                  ),
-                  child: ItemAnimator(
-                    key: ValueKey('animator_$itemId'),
-                    itemId: itemId,
-                    paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
-                    layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
-                    onDispose: _animatorController.onItemUnmounted,
-                    child: _buildCard(item),
-                  ),
+                  layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
+                  onDispose: _animatorController.onItemUnmounted,
+                  child: _buildCard(item),
                 ),
               ),
             );

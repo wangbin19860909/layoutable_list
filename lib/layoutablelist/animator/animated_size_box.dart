@@ -84,7 +84,6 @@ class SizeAnimationParamsMerger extends ValueNotifier<SizeAnimationParams> {
     _layoutParamsListenable.removeListener(_onLayoutParamsChanged);
     _layoutParamsListenable = newListenable;
     _layoutParamsListenable.addListener(_onLayoutParamsChanged);
-    _onLayoutParamsChanged();
   }
   
   void _onParamsChanged() {

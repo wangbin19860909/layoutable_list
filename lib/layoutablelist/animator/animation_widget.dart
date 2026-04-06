@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' show sqrt;
@@ -44,6 +46,9 @@ class AnimationParams {
   final SpringConfig? springConfig;
   final CurveConfig curveConfig;
 
+  /// 延迟执行动画的毫秒数，0 表示立即执行
+  final int delayMs;
+
   Offset offset;
   final Offset toOffset;
 
@@ -64,6 +69,7 @@ class AnimationParams {
   AnimationParams({
     this.springConfig,
     CurveConfig? curveConfig,
+    this.delayMs = 0,
     required this.offset,
     required this.toOffset,
     required this.scale,
@@ -81,6 +87,7 @@ class AnimationParams {
   AnimationParams copy({
     SpringConfig? springConfig,
     CurveConfig? curveConfig,
+    int? delayMs,
     Offset? offset,
     Offset? toOffset,
     double? scale,
@@ -92,6 +99,7 @@ class AnimationParams {
     return AnimationParams(
       springConfig: springConfig ?? this.springConfig,
       curveConfig: curveConfig ?? this.curveConfig,
+      delayMs: delayMs ?? this.delayMs,
       offset: offset ?? this.offset,
       toOffset: toOffset ?? this.toOffset,
       scale: scale ?? this.scale,
@@ -126,6 +134,7 @@ class _AnimationWidgetState extends State<AnimationWidget>
   late Animation<double> _alphaAnimation;
 
   AnimationParams? _currentParams;
+  Timer? _delayTimer;
 
   @override
   void initState() {
@@ -156,6 +165,7 @@ class _AnimationWidgetState extends State<AnimationWidget>
 
   @override
   void dispose() {
+    _delayTimer?.cancel();
     widget.animParams.removeListener(_onParamsChanged);
     _currentParams?.callOnComplete();
     _controller.dispose();
@@ -163,6 +173,8 @@ class _AnimationWidgetState extends State<AnimationWidget>
   }
 
   void _onParamsChanged() {
+    _delayTimer?.cancel();
+    _delayTimer = null;
     // 旧动画被打断，主动调用旧的 onComplete，避免回调丢失
     // callOnComplete 内部自动清空，保证只调一次
     _currentParams?.callOnComplete();
@@ -174,8 +186,22 @@ class _AnimationWidgetState extends State<AnimationWidget>
 
   void _startAnimations() {
     final params = widget.animParams.value;
-    final isSpring = params.springConfig != null;
+    _setupTweens(params);
 
+    if (params.delayMs > 0) {
+      // 延迟期间保持初始值不动
+      _controller.value = 0.0;
+      _delayTimer = Timer(Duration(milliseconds: params.delayMs), () {
+        _delayTimer = null;
+        _runAnimations(params);
+      });
+    } else {
+      _runAnimations(params);
+    }
+  }
+
+  void _setupTweens(AnimationParams params) {
+    final isSpring = params.springConfig != null;
     final Animation<double> parent = isSpring
         ? _controller
         : _controller.drive(CurveTween(curve: params.curveConfig.curve));
@@ -194,6 +220,10 @@ class _AnimationWidgetState extends State<AnimationWidget>
       begin: params.alpha,
       end: params.toAlpha,
     ).animate(parent);
+  }
+
+  void _runAnimations(AnimationParams params) {
+    final isSpring = params.springConfig != null;
 
     // 所有属性都已在目标值，跳过动画
     if (params.offset == params.toOffset &&
@@ -220,7 +250,7 @@ class _AnimationWidgetState extends State<AnimationWidget>
         ),
       );
     } else {
-      _log.d('start curve offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} duration=${params.curveConfig.durationMs}ms');
+      _log.d('start curve offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} duration=${params.curveConfig.durationMs}ms delay=${params.delayMs}ms');
       _controller.forward(from: _controller.value);
     }
   }
