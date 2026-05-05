@@ -18,35 +18,28 @@ class StackSnapScrollPhysics extends BouncingScrollPhysics {
     );
   }
 
-  /// 计算最近的吸附位置
-  double _getTargetOffset(
+  /// 计算最近的吸附位置，同时返回 flingDistance
+  ({double flingDistance, double targetOffset}) _getTargetOffset(
     ScrollMetrics position,
     Tolerance tolerance,
     double velocity,
   ) {
     final double itemExtent = layoutManager.target!.itemExtent;
-
-    // 计算当前位置对应的 item index（浮点数）
     final double currentIndex = position.pixels / itemExtent;
 
-    // 根据速度计算应该滑动多少个卡片
+    double flingDistance;
     double targetIndex;
 
     if (velocity.abs() < tolerance.velocity) {
-      // 速度很小，吸附到最近的 item
+      flingDistance = 0.0;
       targetIndex = currentIndex.roundToDouble();
     } else {
-      // 根据速度计算惯性滑动的卡片数
-      // 使用平方关系：distance = v² / (2 * friction)
-      const double friction = 8000.0; // 摩擦系数，值越大滑动距离越短
-      final double flingDistance =
-          velocity.sign * (velocity * velocity) / (2 * friction);
+      const double friction = 8000.0;
+      flingDistance = velocity.sign * (velocity * velocity) / (2 * friction);
       final double cardOffset = flingDistance / itemExtent;
 
-      // 计算目标 index
       targetIndex = (currentIndex + cardOffset).clamp(0, layoutManager.target!.itemCount - 1);
 
-      // 至少移动到下一个/上一个
       if (velocity > 0 && targetIndex < currentIndex + 1) {
         targetIndex = currentIndex.ceilToDouble();
       } else if (velocity < 0 && targetIndex > currentIndex - 1) {
@@ -56,7 +49,7 @@ class StackSnapScrollPhysics extends BouncingScrollPhysics {
       }
     }
 
-    return targetIndex * itemExtent;
+    return (flingDistance: flingDistance, targetOffset: targetIndex * itemExtent);
   }
 
   @override
@@ -64,14 +57,20 @@ class StackSnapScrollPhysics extends BouncingScrollPhysics {
     ScrollMetrics position,
     double velocity,
   ) {
-    // 如果已经在边界，使用默认行为
-    if ((velocity <= 0.0 && position.pixels <= position.minScrollExtent) ||
-        (velocity >= 0.0 && position.pixels >= position.maxScrollExtent)) {
+    final Tolerance tolerance = toleranceFor(position);
+
+    // 已经在边界外，走父类（bouncing overscroll 回弹）
+    if (position.outOfRange) {
       return super.createBallisticSimulation(position, velocity);
     }
 
-    final Tolerance tolerance = toleranceFor(position);
-    final double targetOffset = _getTargetOffset(position, tolerance, velocity);
+    final (:flingDistance, :targetOffset) = _getTargetOffset(position, tolerance, velocity);
+    final double flingEnd = position.pixels + flingDistance;
+
+    // fling 落点超出滚动范围，走父类（让 bouncing overscroll 处理）
+    if (flingEnd <= position.minScrollExtent || flingEnd >= position.maxScrollExtent) {
+      return super.createBallisticSimulation(position, velocity);
+    }
 
     // 如果当前位置已经接近目标位置，停止滚动
     final double distance = (targetOffset - position.pixels).abs();
@@ -79,7 +78,7 @@ class StackSnapScrollPhysics extends BouncingScrollPhysics {
       return null;
     }
 
-    // 创建弹簧模拟动画
+    // 创建弹簧模拟动画，吸附到目标位置
     return ScrollSpringSimulation(
       spring,
       position.pixels,

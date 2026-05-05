@@ -8,6 +8,7 @@ import 'drag_demo.dart';
 import 'variable_size_swap_demo.dart';
 import 'grid2_demo.dart';
 import 'ipad_desktop_demo.dart';
+import 'listview_transform_test.dart';
 import 'grid_vertical_demo.dart';
 
 void main() => runApp(const MyApp());
@@ -162,6 +163,16 @@ class DemoListScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (context) => const IPadDesktopDemo()),
               );
             },
+          ),
+          const SizedBox(height: 16),
+          _buildDemoCard(
+            context,
+            title: 'ListView Transform Test',
+            description: 'ListView item 加 Transform，验证 hit test 行为',
+            icon: Icons.touch_app,
+            color: Colors.brown,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ListViewTransformTest())),
           ),
           const SizedBox(height: 16),
           _buildDemoCard(

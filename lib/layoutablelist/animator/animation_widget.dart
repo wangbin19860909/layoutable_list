@@ -35,10 +35,7 @@ class CurveConfig {
   final Curve curve;
   final int durationMs;
 
-  const CurveConfig({
-    this.curve = Curves.linear,
-    this.durationMs = 500,
-  });
+  const CurveConfig({this.curve = Curves.linear, this.durationMs = 500});
 }
 
 /// 统一动画参数
@@ -47,7 +44,10 @@ class AnimationParams {
   final CurveConfig curveConfig;
 
   /// 延迟执行动画的毫秒数，0 表示立即执行
-  final int delayMs;
+  final int startDelayMs;
+
+  /// 是否执行动画，false 时直接跳到目标值（等同于 offset==toOffset 等情况）
+  final bool animated;
 
   Offset offset;
   final Offset toOffset;
@@ -69,7 +69,8 @@ class AnimationParams {
   AnimationParams({
     this.springConfig,
     CurveConfig? curveConfig,
-    this.delayMs = 0,
+    this.startDelayMs = 0,
+    this.animated = true,
     required this.offset,
     required this.toOffset,
     required this.scale,
@@ -77,10 +78,11 @@ class AnimationParams {
     required this.alpha,
     required this.toAlpha,
     VoidCallback? onComplete,
-  })  : _onComplete = onComplete,
-        curveConfig = springConfig != null
-            ? const CurveConfig(curve: Curves.linear)
-            : (curveConfig ?? const CurveConfig());
+  }) : _onComplete = onComplete,
+       curveConfig =
+           springConfig != null
+               ? const CurveConfig(curve: Curves.linear)
+               : (curveConfig ?? const CurveConfig());
 
   /// 复制并替换任意参数，current 值默认从当前值中取
   /// onComplete 不拷贝，完全由参数决定
@@ -88,6 +90,7 @@ class AnimationParams {
     SpringConfig? springConfig,
     CurveConfig? curveConfig,
     int? delayMs,
+    bool? animated,
     Offset? offset,
     Offset? toOffset,
     double? scale,
@@ -99,7 +102,8 @@ class AnimationParams {
     return AnimationParams(
       springConfig: springConfig ?? this.springConfig,
       curveConfig: curveConfig ?? this.curveConfig,
-      delayMs: delayMs ?? this.delayMs,
+      startDelayMs: delayMs ?? this.startDelayMs,
+      animated: animated ?? this.animated,
       offset: offset ?? this.offset,
       toOffset: toOffset ?? this.toOffset,
       scale: scale ?? this.scale,
@@ -142,7 +146,9 @@ class _AnimationWidgetState extends State<AnimationWidget>
     _currentParams = widget.animParams.value;
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: widget.animParams.value.curveConfig.durationMs),
+      duration: Duration(
+        milliseconds: widget.animParams.value.curveConfig.durationMs,
+      ),
     );
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
@@ -180,7 +186,9 @@ class _AnimationWidgetState extends State<AnimationWidget>
     _currentParams?.callOnComplete();
     _currentParams = widget.animParams.value;
     _controller.reset();
-    _controller.duration = Duration(milliseconds: widget.animParams.value.curveConfig.durationMs);
+    _controller.duration = Duration(
+      milliseconds: widget.animParams.value.curveConfig.durationMs,
+    );
     _startAnimations();
   }
 
@@ -188,10 +196,10 @@ class _AnimationWidgetState extends State<AnimationWidget>
     final params = widget.animParams.value;
     _setupTweens(params);
 
-    if (params.delayMs > 0) {
+    if (params.startDelayMs > 0) {
       // 延迟期间保持初始值不动
       _controller.value = 0.0;
-      _delayTimer = Timer(Duration(milliseconds: params.delayMs), () {
+      _delayTimer = Timer(Duration(milliseconds: params.startDelayMs), () {
         _delayTimer = null;
         _runAnimations(params);
       });
@@ -202,9 +210,10 @@ class _AnimationWidgetState extends State<AnimationWidget>
 
   void _setupTweens(AnimationParams params) {
     final isSpring = params.springConfig != null;
-    final Animation<double> parent = isSpring
-        ? _controller
-        : _controller.drive(CurveTween(curve: params.curveConfig.curve));
+    final Animation<double> parent =
+        isSpring
+            ? _controller
+            : _controller.drive(CurveTween(curve: params.curveConfig.curve));
 
     _offsetAnimation = Tween<Offset>(
       begin: params.offset,
@@ -225,18 +234,23 @@ class _AnimationWidgetState extends State<AnimationWidget>
   void _runAnimations(AnimationParams params) {
     final isSpring = params.springConfig != null;
 
-    // 所有属性都已在目标值，跳过动画
-    if (params.offset == params.toOffset &&
-        params.scale == params.toScale &&
-        params.alpha == params.toAlpha) {
-      _log.dDebounced('skip (no change) offset=${params.offset} scale=${params.scale.toStringAsFixed(2)} alpha=${params.alpha.toStringAsFixed(2)}');
+    // animated=false 或所有属性都已在目标值，直接跳到目标值
+    if (!params.animated ||
+        (params.offset == params.toOffset &&
+            params.scale == params.toScale &&
+            params.alpha == params.toAlpha)) {
+      _log.dDebounced(
+        'skip (no change) offset=${params.offset} scale=${params.scale.toStringAsFixed(2)} alpha=${params.alpha.toStringAsFixed(2)}',
+      );
       _controller.value = 1.0;
       return;
     }
 
     if (isSpring) {
       final springConfig = params.springConfig!;
-      _log.d('start spring offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} stiffness=${springConfig.stiffness} damping=${springConfig.damping}');
+      _log.d(
+        'start spring offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} stiffness=${springConfig.stiffness} damping=${springConfig.damping}',
+      );
       _controller.animateWith(
         SpringSimulation(
           SpringDescription(
@@ -250,7 +264,9 @@ class _AnimationWidgetState extends State<AnimationWidget>
         ),
       );
     } else {
-      _log.d('start curve offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} duration=${params.curveConfig.durationMs}ms delay=${params.delayMs}ms');
+      _log.d(
+        'start curve offset=${params.offset}→${params.toOffset} scale=${params.scale.toStringAsFixed(2)}→${params.toScale.toStringAsFixed(2)} duration=${params.curveConfig.durationMs}ms delay=${params.startDelayMs}ms',
+      );
       _controller.forward(from: _controller.value);
     }
   }
@@ -270,15 +286,12 @@ class _AnimationWidgetState extends State<AnimationWidget>
         params.scale = _scaleAnimation.value;
         params.alpha = _alphaAnimation.value.clamp(0.0, 1.0);
 
-        return Transform.translate(
-          offset: params.offset,
-          child: Transform.scale(
-            scale: params.scale,
-            child: Opacity(
-              opacity: params.alpha,
-              child: widget.child,
-            ),
-          ),
+        return Transform(
+          transform:
+              Matrix4.identity()
+                ..translate(params.offset.dx, params.offset.dy)
+                ..scale(params.scale, params.scale),
+          child: Opacity(opacity: params.alpha, child: child),
         );
       },
       child: widget.child,

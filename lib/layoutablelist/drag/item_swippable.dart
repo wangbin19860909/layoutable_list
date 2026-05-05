@@ -289,6 +289,7 @@ class _ItemSwippableState extends State<ItemSwippable> with TickerProviderStateM
             },
           ),
         },
+        excludeFromSemantics: true,
         child: child,
       );
     }

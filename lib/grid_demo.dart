@@ -27,7 +27,7 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
   @override
   void initState() {
     super.initState();
-    
+
     // 初始化 5 个卡片
     final initialItems = List.generate(5, (index) {
       return CardItem(
@@ -45,7 +45,7 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
     _animatorController = ItemAnimatorController(
       layoutManagerHolder: _layoutManagerHolder,
     );
-    
+
     _adapter.addListener(_onAdapterChanged);
   }
 
@@ -83,7 +83,7 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
       color: _getColor(_nextId),
     );
     _nextId++;
-    
+
     _animatorController.performLayoutAnimations(
       adapter: _adapter,
       addIndexes: [0],
@@ -131,6 +131,7 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
       _removeInterrupter = _animatorController.performLayoutAnimations(
         adapter: _adapter,
         removeIndexes: [0],
+        startDelayMs: 300,
         onComplete: () {
           _removeInterrupter = null;
           _adapter.removeAt(0);
@@ -139,6 +140,8 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
       );
     }
   }
+
+  AnimationInterrupter? _swipeRemoveInterrupter;
 
   @override
   void onSwipeStart(String itemId) {}
@@ -150,33 +153,44 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
   bool onSwipeEnd(String itemId, SwipeResult result) {
     switch (result) {
       case SnapBack():
-        // 回弹，不做任何操作
         return true;
-        
+
       case Swipe(:final direction):
         if (direction == AxisDirection.up || direction == AxisDirection.down) {
+          // 先 interrupt，触发 onComplete → removeById，数据同步后再查 index
+          _swipeRemoveInterrupter?.interrupt();
+          _swipeRemoveInterrupter = null;
+
+          debugPrint(
+            '[Swipe] after interrupt, findChildIndex(${itemId})=${_adapter.findChildIndex(itemId)} itemCount=${_adapter.itemCount}',
+          );
+
           final index = _adapter.findChildIndex(itemId);
           if (index != null) {
-            // 被 swipe 的 item 继续向上/下飞出
             const itemHeight = 250.0;
-            final flyOutY = direction == AxisDirection.up ? -itemHeight : itemHeight;
+            final flyOutY =
+                direction == AxisDirection.up ? -itemHeight : itemHeight;
             _animatorController.performItemAnimation(
               itemId,
               index,
-              curveConfig: const CurveConfig(curve: Curves.easeIn, durationMs: 300),
+              curveConfig: const CurveConfig(
+                curve: Curves.easeIn,
+                durationMs: 300,
+              ),
               offsetY: flyOutY,
               alpha: 0.0,
             );
 
-            // 其余 item 补位动画，结束后删除数据
-            _animatorController.performLayoutAnimations(
-              adapter: _adapter,
-              removeIndexes: [index],
-              refreshAfterAnimation: true,
-              onComplete: () {
-                _adapter.removeById(itemId);
-              },
-            );
+            _swipeRemoveInterrupter = _animatorController
+                .performLayoutAnimations(
+                  adapter: _adapter,
+                  removeIndexes: [index],
+                  refreshAfterAnimation: true,
+                  onComplete: () {
+                    _swipeRemoveInterrupter = null;
+                    _adapter.removeById(itemId);
+                  },
+                );
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -217,26 +231,31 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
 
             return KeyedSubtree(
               key: ValueKey(itemId),
-              child: ItemSwippable(
-                key: ValueKey('draggable_$itemId'),
+              child: ItemAnimator(
+                key: ValueKey('animator_$itemId'),
                 itemId: itemId,
-                paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
-                scrollDirection: Axis.horizontal,
-                listener: this,
-                swipeThreshold: const SwipeThreshold(
-                  velocityThreshold: 800.0,
-                  offsetThreshold: 300.0,
+                paramsNotifier: _animatorController.listenAnimatorParams(
+                  itemId,
+                  index,
                 ),
-                dragThreshold: const OffsetThreshold(min: -150, max: 150),
-                gestureSettings: const DeviceGestureSettings(
-                  touchSlop: 30.0,
-                ),
-                child: ItemAnimator(
-                  key: ValueKey('animator_$itemId'),
+                layoutParamsListenable: _layoutManagerHolder.target!
+                    .listenLayoutParamsForPosition(index),
+                onDispose: _animatorController.onItemUnmounted,
+                child: ItemSwippable(
+                  key: ValueKey('draggable_$itemId'),
                   itemId: itemId,
-                  paramsNotifier: _animatorController.listenAnimatorParams(itemId, index),
-                  layoutParamsListenable: _layoutManagerHolder.target!.listenLayoutParamsForPosition(index),
-                  onDispose: _animatorController.onItemUnmounted,
+                  paramsNotifier: _animatorController.listenAnimatorParams(
+                    itemId,
+                    index,
+                  ),
+                  scrollDirection: Axis.horizontal,
+                  listener: this,
+                  swipeThreshold: const SwipeThreshold(
+                    velocityThreshold: 800.0,
+                    offsetThreshold: 300.0,
+                  ),
+                  dragThreshold: const OffsetThreshold(min: -150, max: 150),
+                  gestureSettings: const DeviceGestureSettings(touchSlop: 30.0),
                   child: _buildCard(item),
                 ),
               ),
@@ -247,6 +266,8 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
             final valueKey = key as ValueKey<String>;
             return _adapter.findChildIndex(valueKey.value);
           },
+          addRepaintBoundaries: false,
+          addSemanticIndexes: false,
         ),
       ),
       floatingActionButton: Column(
@@ -272,18 +293,13 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
   Widget _buildCard(CardItem item) {
     return Card(
       elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              item.color,
-              item.color.withValues(alpha: 0.7),
-            ],
+            colors: [item.color, item.color.withValues(alpha: 0.7)],
           ),
           borderRadius: BorderRadius.circular(16),
         ),
@@ -314,10 +330,7 @@ class _GridDemoState extends State<GridDemo> with ItemSwipeListener {
             const SizedBox(height: 8),
             Text(
               'ID: ${item.id}',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
+              style: const TextStyle(fontSize: 14, color: Colors.white70),
             ),
           ],
         ),
@@ -331,9 +344,5 @@ class CardItem {
   final String title;
   final Color color;
 
-  CardItem({
-    required this.id,
-    required this.title,
-    required this.color,
-  });
+  CardItem({required this.id, required this.title, required this.color});
 }

@@ -147,7 +147,7 @@ class ItemAnimatorController extends ChangeNotifier {
         ItemAnimatorParams(
           index: index,
           curveConfig: curveConfig,
-          delayMs: delayMs,
+          startDelayMs: delayMs,
           offset: Offset.zero,
           toOffset: Offset.zero,
           scale: fromScale ?? 1.0,
@@ -240,6 +240,7 @@ class ItemAnimatorController extends ChangeNotifier {
     Object? newTag,
     VoidCallback? onComplete,
     bool refreshAfterAnimation = false,
+    int startDelayMs = 0,
   }) {
     final oldItemCount = adapter.itemCount;
     final newItemCount = oldItemCount - removeIndexes.length + addIndexes.length;
@@ -329,7 +330,16 @@ class ItemAnimatorController extends ChangeNotifier {
       final newLayoutParams = layoutManager.getLayoutParamsForPosition(
         index: newIndex,
         itemCount: newItemCount,
-        scrollOffset: newScrollOffset,
+        // overscroll 时用 clamp 后的 scrollOffset 计算 newLayoutParams，
+        // 避免动画目标 size 与回弹后的 size 不一致导致跳变
+        scrollOffset: isOverscroll ? _resolveNewScrollOffset(
+          newItemCount: newItemCount,
+          currentScrollOffset: currentScrollOffset.clamp(0.0, double.infinity),
+          padding: padding,
+          itemSize: itemSize,
+          edgeSpacing: edgeSpacing,
+          itemSpacing: itemSpacing,
+        ) : newScrollOffset,
         padding: padding,
         itemSize: itemSize,
         edgeSpacing: edgeSpacing,
@@ -375,6 +385,7 @@ class ItemAnimatorController extends ChangeNotifier {
         index: refreshAfterAnimation ? oldIndex : newIndex,
         springConfig: springConfig,
         curveConfig: curveConfig,
+        startDelayMs: startDelayMs,
         offset: fromOffset,
         toOffset: toOffset,
         scale: 1.0,
